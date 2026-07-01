@@ -1,0 +1,23 @@
+{
+  "name": "@atlas/performance-tests",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Atlas BOS — Performance and load benchmarks",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rimraf coverage"
+  },
+  "dependencies": {
+    "@atlas/event-bus": "workspace:*",
+    "@atlas/module-ai-memory": "workspace:*",
+    "@atlas/queue": "workspace:*"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

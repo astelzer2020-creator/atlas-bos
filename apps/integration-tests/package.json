@@ -1,0 +1,39 @@
+{
+  "name": "@atlas/integration-tests",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Atlas BOS — Cross-service integration tests with graceful service skipping",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rimraf coverage"
+  },
+  "dependencies": {
+    "@atlas/event-bus": "workspace:*",
+    "@atlas/queue": "workspace:*",
+    "@atlas/shared-kernel": "workspace:*"
+  },
+  "devDependencies": {
+    "@atlas/api": "workspace:*",
+    "@atlas/database": "workspace:*",
+    "@atlas/module-ai": "workspace:*",
+    "@atlas/module-ai-memory": "workspace:*",
+    "@atlas/module-audit": "workspace:*",
+    "@atlas/module-automation": "workspace:*",
+    "@atlas/module-crm": "workspace:*",
+    "@atlas/module-finance": "workspace:*",
+    "@atlas/module-notifications": "workspace:*",
+    "@atlas/module-projects": "workspace:*",
+    "@atlas/module-storage": "workspace:*",
+    "@atlas/module-tenant-identity": "workspace:*",
+    "@atlas/module-workflow": "workspace:*",
+    "@atlas/platform": "workspace:*",
+    "@atlas/worker": "workspace:*",
+    "ioredis": "^5.4.2",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
