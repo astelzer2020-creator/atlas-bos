@@ -1,0 +1,394 @@
+// HR bounded context — workforce schema
+// Requires: Organization, User from platform-core; JournalEntry from finance.prisma
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum EmploymentType {
+  full_time
+  part_time
+  contractor
+  intern
+  temporary
+
+  @@schema("workforce")
+}
+
+enum EmploymentStatus {
+  active
+  on_leave
+  terminated
+  suspended
+
+  @@schema("workforce")
+}
+
+enum ContractType {
+  permanent
+  fixed_term
+  probation
+  contractor
+  intern
+
+  @@schema("workforce")
+}
+
+enum SalaryFrequency {
+  hourly
+  monthly
+  annual
+
+  @@schema("workforce")
+}
+
+enum ContractStatus {
+  draft
+  active
+  expired
+  terminated
+
+  @@schema("workforce")
+}
+
+enum TimeOffPolicyType {
+  pto
+  sick
+  parental
+  bereavement
+  unpaid
+  other
+
+  @@schema("workforce")
+}
+
+enum AccrualType {
+  annual
+  monthly
+  per_pay_period
+  none
+
+  @@schema("workforce")
+}
+
+enum TimeOffRequestStatus {
+  pending
+  approved
+  rejected
+  cancelled
+
+  @@schema("workforce")
+}
+
+enum PayrollProvider {
+  gusto
+  adp
+  paychex
+  rippling
+  manual
+  other
+
+  @@schema("workforce")
+}
+
+enum PayrollRunStatus {
+  draft
+  submitted
+  processing
+  completed
+  failed
+  cancelled
+
+  @@schema("workforce")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Models
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Department {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String   @map("organization_id") @db.Uuid
+  parentDepartmentId String?  @map("parent_department_id") @db.Uuid
+  code               String
+  name               String
+  description        String?
+  costCenterCode     String?  @map("cost_center_code")
+  managerId          String?  @map("manager_id") @db.Uuid
+  isActive           Boolean  @default(true) @map("is_active")
+  metadata           Json     @default("{}")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy          String?  @map("created_by") @db.Uuid
+  updatedBy          String?  @map("updated_by") @db.Uuid
+  version            Int      @default(1)
+
+  parentDepartment Department?  @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id])
+  childDepartments Department[] @relation("DepartmentHierarchy")
+  manager          Employee?    @relation("DepartmentManager", fields: [managerId], references: [id])
+  positions        Position[]
+  employees        Employee[]   @relation("EmployeeDepartment")
+  orgChartNodes    OrgChartNode[]
+
+  @@index([organizationId], map: "idx_departments_organization_id")
+  @@index([organizationId, parentDepartmentId], map: "idx_departments_org_parent")
+  @@map("departments")
+  @@schema("workforce")
+}
+
+model Position {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  departmentId   String         @map("department_id") @db.Uuid
+  code           String
+  title          String
+  description    String?
+  jobLevel       String?        @map("job_level")
+  employmentType EmploymentType @default(full_time) @map("employment_type")
+  headcount      Int            @default(1)
+  filledCount    Int            @default(0) @map("filled_count")
+  minSalary      Decimal?       @map("min_salary") @db.Decimal(19, 4)
+  maxSalary      Decimal?       @map("max_salary") @db.Decimal(19, 4)
+  currencyCode   String         @default("USD") @map("currency_code") @db.Char(3)
+  isActive       Boolean        @default(true) @map("is_active")
+  metadata       Json           @default("{}")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  createdBy      String?        @map("created_by") @db.Uuid
+  updatedBy      String?        @map("updated_by") @db.Uuid
+  version        Int            @default(1)
+
+  department    Department     @relation(fields: [departmentId], references: [id])
+  employees     Employee[]     @relation("EmployeePosition")
+  orgChartNodes OrgChartNode[]
+
+  @@index([organizationId, departmentId], map: "idx_positions_org_department")
+  @@map("positions")
+  @@schema("workforce")
+}
+
+model Employee {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String           @map("organization_id") @db.Uuid
+  userId           String?          @map("user_id") @db.Uuid
+  employeeNumber   String           @map("employee_number")
+  externalId       String?          @map("external_id")
+  firstName        String           @map("first_name")
+  lastName         String           @map("last_name")
+  displayName      String           @map("display_name")
+  workEmail        String           @map("work_email") @db.Citext
+  personalEmail    String?          @map("personal_email") @db.Citext
+  phone            String?
+  departmentId     String?          @map("department_id") @db.Uuid
+  positionId       String?          @map("position_id") @db.Uuid
+  managerId        String?          @map("manager_id") @db.Uuid
+  hireDate         DateTime         @map("hire_date") @db.Date
+  terminationDate  DateTime?        @map("termination_date") @db.Date
+  employmentStatus EmploymentStatus @default(active) @map("employment_status")
+  workLocation     String?          @map("work_location")
+  timezone         String           @default("UTC")
+  avatarUrl        String?          @map("avatar_url")
+  dateOfBirth      DateTime?        @map("date_of_birth") @db.Date
+  gender           String?
+  emergencyContact Json             @default("{}") @map("emergency_contact")
+  address          Json             @default("{}")
+  metadata         Json             @default("{}")
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdBy        String?          @map("created_by") @db.Uuid
+  updatedBy        String?          @map("updated_by") @db.Uuid
+  version          Int              @default(1)
+
+  department           Department?          @relation("EmployeeDepartment", fields: [departmentId], references: [id])
+  position             Position?            @relation("EmployeePosition", fields: [positionId], references: [id])
+  manager              Employee?            @relation("EmployeeManager", fields: [managerId], references: [id])
+  directReports        Employee[]           @relation("EmployeeManager")
+  managedDepartments   Department[]         @relation("DepartmentManager")
+  employmentContracts  EmploymentContract[]
+  timeOffRequests      TimeOffRequest[]     @relation("TimeOffEmployee")
+  approvedTimeOff      TimeOffRequest[]     @relation("TimeOffApprover")
+  orgChartNodes        OrgChartNode[]       @relation("OrgChartEmployee")
+  managedOrgChartNodes OrgChartNode[]       @relation("OrgChartManager")
+
+  @@unique([organizationId, employeeNumber], map: "uq_employees_org_number_active")
+  @@unique([organizationId, userId], map: "uq_employees_org_user")
+  @@index([organizationId], map: "idx_employees_organization_id")
+  @@index([organizationId, departmentId], map: "idx_employees_org_department")
+  @@index([organizationId, managerId], map: "idx_employees_org_manager")
+  @@index([organizationId, employmentStatus], map: "idx_employees_org_status")
+  @@map("employees")
+  @@schema("workforce")
+}
+
+model EmploymentContract {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String          @map("organization_id") @db.Uuid
+  employeeId       String          @map("employee_id") @db.Uuid
+  contractNumber   String          @map("contract_number")
+  contractType     ContractType    @default(permanent) @map("contract_type")
+  startDate        DateTime        @map("start_date") @db.Date
+  endDate          DateTime?       @map("end_date") @db.Date
+  probationEndDate DateTime?       @map("probation_end_date") @db.Date
+  baseSalary       Decimal         @default(0) @map("base_salary") @db.Decimal(19, 4)
+  salaryFrequency  SalaryFrequency @default(annual) @map("salary_frequency")
+  currencyCode     String          @default("USD") @map("currency_code") @db.Char(3)
+  workingHours     Decimal         @default(40) @map("working_hours") @db.Decimal(5, 2)
+  noticePeriodDays Int             @default(30) @map("notice_period_days")
+  status           ContractStatus  @default(active)
+  terms            Json            @default("{}")
+  signedAt         DateTime?       @map("signed_at") @db.Timestamptz(6)
+  documentUrl      String?         @map("document_url")
+  metadata         Json            @default("{}")
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  createdBy        String?         @map("created_by") @db.Uuid
+  updatedBy        String?         @map("updated_by") @db.Uuid
+  version          Int             @default(1)
+
+  employee     Employee     @relation(fields: [employeeId], references: [id])
+
+  @@unique([organizationId, contractNumber], map: "uq_employment_contracts_org_number")
+  @@index([organizationId, employeeId], map: "idx_employment_contracts_org_employee")
+  @@index([organizationId, employeeId, status], map: "idx_employment_contracts_org_active")
+  @@map("employment_contracts")
+  @@schema("workforce")
+}
+
+model TimeOffPolicy {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String            @map("organization_id") @db.Uuid
+  code              String
+  name              String
+  policyType        TimeOffPolicyType @default(pto) @map("policy_type")
+  accrualType       AccrualType       @default(annual) @map("accrual_type")
+  accrualRate       Decimal           @default(0) @map("accrual_rate") @db.Decimal(8, 4)
+  maxBalance        Decimal?          @map("max_balance") @db.Decimal(8, 4)
+  carryoverLimit    Decimal?          @map("carryover_limit") @db.Decimal(8, 4)
+  waitingPeriodDays Int               @default(0) @map("waiting_period_days")
+  requiresApproval  Boolean           @default(true) @map("requires_approval")
+  isActive          Boolean           @default(true) @map("is_active")
+  metadata          Json              @default("{}")
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  createdBy         String?           @map("created_by") @db.Uuid
+  updatedBy         String?           @map("updated_by") @db.Uuid
+  version           Int               @default(1)
+
+  timeOffRequests  TimeOffRequest[]
+
+  @@index([organizationId], map: "idx_time_off_policies_organization_id")
+  @@map("time_off_policies")
+  @@schema("workforce")
+}
+
+model TimeOffRequest {
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String               @map("organization_id") @db.Uuid
+  employeeId      String               @map("employee_id") @db.Uuid
+  policyId        String               @map("policy_id") @db.Uuid
+  requestNumber   String               @map("request_number")
+  status          TimeOffRequestStatus @default(pending)
+  startDate       DateTime             @map("start_date") @db.Date
+  endDate         DateTime             @map("end_date") @db.Date
+  totalDays       Decimal              @map("total_days") @db.Decimal(5, 2)
+  halfDayStart    Boolean              @default(false) @map("half_day_start")
+  halfDayEnd      Boolean              @default(false) @map("half_day_end")
+  reason          String?
+  approverId      String?              @map("approver_id") @db.Uuid
+  approvedAt      DateTime?            @map("approved_at") @db.Timestamptz(6)
+  rejectionReason String?              @map("rejection_reason")
+  metadata        Json                 @default("{}")
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  createdBy       String?              @map("created_by") @db.Uuid
+  updatedBy       String?              @map("updated_by") @db.Uuid
+  version         Int                  @default(1)
+
+  employee     Employee      @relation("TimeOffEmployee", fields: [employeeId], references: [id])
+  policy       TimeOffPolicy @relation(fields: [policyId], references: [id])
+  approver     Employee?     @relation("TimeOffApprover", fields: [approverId], references: [id])
+
+  @@unique([organizationId, requestNumber], map: "uq_time_off_requests_org_number")
+  @@index([organizationId, employeeId], map: "idx_time_off_requests_org_employee")
+  @@index([organizationId, status, startDate, endDate], map: "idx_time_off_requests_org_status_dates")
+  @@index([organizationId, approverId], map: "idx_time_off_requests_org_approver_pending")
+  @@map("time_off_requests")
+  @@schema("workforce")
+}
+
+model PayrollRun {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String           @map("organization_id") @db.Uuid
+  runNumber       String           @map("run_number")
+  provider        PayrollProvider  @default(manual)
+  externalRunId   String?          @map("external_run_id")
+  status          PayrollRunStatus @default(draft)
+  payPeriodStart  DateTime         @map("pay_period_start") @db.Date
+  payPeriodEnd    DateTime         @map("pay_period_end") @db.Date
+  payDate         DateTime         @map("pay_date") @db.Date
+  employeeCount   Int              @default(0) @map("employee_count")
+  grossAmount     Decimal          @default(0) @map("gross_amount") @db.Decimal(19, 4)
+  netAmount       Decimal          @default(0) @map("net_amount") @db.Decimal(19, 4)
+  taxAmount       Decimal          @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  currencyCode    String           @default("USD") @map("currency_code") @db.Char(3)
+  journalEntryId  String?          @map("journal_entry_id") @db.Uuid
+  submittedAt     DateTime?        @map("submitted_at") @db.Timestamptz(6)
+  completedAt     DateTime?        @map("completed_at") @db.Timestamptz(6)
+  errorMessage    String?          @map("error_message")
+  providerPayload Json             @default("{}") @map("provider_payload")
+  metadata        Json             @default("{}")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdBy       String?          @map("created_by") @db.Uuid
+  updatedBy       String?          @map("updated_by") @db.Uuid
+  version         Int              @default(1)
+
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  @@unique([organizationId, runNumber], map: "uq_payroll_runs_org_number")
+  @@unique([organizationId, provider, externalRunId], map: "uq_payroll_runs_org_provider_external")
+  @@index([organizationId, status], map: "idx_payroll_runs_org_status")
+  @@index([organizationId, payDate(sort: Desc)], map: "idx_payroll_runs_org_pay_date")
+  @@map("payroll_runs")
+  @@schema("workforce")
+}
+
+model OrgChartNode {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  employeeId     String    @map("employee_id") @db.Uuid
+  managerId      String?   @map("manager_id") @db.Uuid
+  departmentId   String?   @map("department_id") @db.Uuid
+  positionId     String?   @map("position_id") @db.Uuid
+  nodeLevel      Int       @default(0) @map("node_level")
+  sortOrder      Int       @default(0) @map("sort_order")
+  isActive       Boolean   @default(true) @map("is_active")
+  effectiveFrom  DateTime  @default(now()) @map("effective_from") @db.Date
+  effectiveTo    DateTime? @map("effective_to") @db.Date
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy      String?   @map("created_by") @db.Uuid
+  updatedBy      String?   @map("updated_by") @db.Uuid
+  version        Int       @default(1)
+
+  employee     Employee     @relation("OrgChartEmployee", fields: [employeeId], references: [id])
+  manager      Employee?    @relation("OrgChartManager", fields: [managerId], references: [id])
+  department   Department?  @relation(fields: [departmentId], references: [id])
+  position     Position?    @relation(fields: [positionId], references: [id])
+
+  @@unique([organizationId, employeeId], map: "uq_org_chart_nodes_org_employee_active")
+  @@index([organizationId, managerId], map: "idx_org_chart_nodes_org_manager")
+  @@index([organizationId, departmentId], map: "idx_org_chart_nodes_org_department")
+  @@index([organizationId, nodeLevel, sortOrder], map: "idx_org_chart_nodes_org_level")
+  @@map("org_chart_nodes")
+  @@schema("workforce")
+}

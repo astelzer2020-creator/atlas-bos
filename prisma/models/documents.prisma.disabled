@@ -1,0 +1,266 @@
+// Documents & Storage bounded context — file metadata, versions, permissions, attachments
+// Schema: storage
+// See: docs/database/18-documents-storage.md
+
+enum FileStatus {
+  pending
+  uploading
+  scanning
+  clean
+  infected
+  quarantined
+  rejected
+  deleted
+
+  @@schema("storage")
+}
+
+enum SensitivityClass {
+  public
+  standard
+  restricted
+  confidential
+
+  @@schema("storage")
+}
+
+enum FilePermissionGranteeType {
+  user
+  team
+  role
+  workspace
+
+  @@schema("storage")
+}
+
+enum FilePermissionLevel {
+  read
+  write
+  delete
+  share
+  admin
+
+  @@schema("storage")
+}
+
+enum PreviewType {
+  thumbnail_sm
+  thumbnail_md
+  thumbnail_lg
+  pdf_preview
+  video_poster
+
+  @@schema("storage")
+}
+
+enum PreviewStatus {
+  pending
+  processing
+  ready
+  failed
+  skipped
+
+  @@schema("storage")
+}
+
+enum AttachmentRole {
+  primary
+  supporting
+  signature
+  export
+  cover
+  inline
+
+  @@schema("storage")
+}
+
+model Folder {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  workspaceId    String?   @map("workspace_id") @db.Uuid
+  parentFolderId String?   @map("parent_folder_id") @db.Uuid
+  name           String
+  slug           String
+  path           String
+  depth          Int       @default(0) @db.SmallInt
+  description    String?
+  color          String?   @db.Char(7)
+  isSystem       Boolean   @default(false) @map("is_system")
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy      String    @map("created_by") @db.Uuid
+  updatedBy      String?   @map("updated_by") @db.Uuid
+  version        Int       @default(1)
+
+  parentFolder Folder?  @relation("FolderHierarchy", fields: [parentFolderId], references: [id])
+  childFolders Folder[] @relation("FolderHierarchy")
+  files        File[]
+
+  @@index([tenantId, workspaceId], map: "idx_folders_tenant_workspace")
+  @@index([parentFolderId], map: "idx_folders_parent")
+  @@map("folders")
+  @@schema("storage")
+}
+
+model File {
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String           @map("tenant_id") @db.Uuid
+  folderId             String?          @map("folder_id") @db.Uuid
+  name                 String
+  originalName         String           @map("original_name")
+  mimeType             String           @map("mime_type")
+  extension            String?
+  sizeBytes            BigInt           @map("size_bytes")
+  contentHash          Bytes            @map("content_hash")
+  bucket               String
+  objectKey            String           @map("object_key")
+  encryptionKeyId      String           @map("encryption_key_id")
+  status               FileStatus       @default(pending)
+  currentVersionNumber Int              @default(1) @map("current_version_number")
+  isStarred            Boolean          @default(false) @map("is_starred")
+  sensitivityClass     SensitivityClass @default(standard) @map("sensitivity_class")
+  legalHold            Boolean          @default(false) @map("legal_hold")
+  retentionUntil       DateTime?        @map("retention_until") @db.Timestamptz(6)
+  scannedAt            DateTime?        @map("scanned_at") @db.Timestamptz(6)
+  scanResult           String?          @map("scan_result")
+  metadata             Json             @default("{}")
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt            DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdBy            String           @map("created_by") @db.Uuid
+  updatedBy            String?            @map("updated_by") @db.Uuid
+  version              Int              @default(1)
+
+  folder       Folder?           @relation(fields: [folderId], references: [id])
+  versions     FileVersion[]
+  permissions  FilePermission[]
+  previews     FilePreview[]
+  attachments  FileAttachment[]
+
+  @@index([tenantId, folderId], map: "idx_files_tenant_folder")
+  @@index([tenantId, status], map: "idx_files_tenant_status")
+  @@index([retentionUntil], map: "idx_files_retention")
+  @@map("files")
+  @@schema("storage")
+}
+
+model FileVersion {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  fileId        String   @map("file_id") @db.Uuid
+  versionNumber Int      @map("version_number")
+  isLatest      Boolean  @default(false) @map("is_latest")
+  sizeBytes     BigInt   @map("size_bytes")
+  contentHash   Bytes    @map("content_hash")
+  bucket        String
+  objectKey     String   @map("object_key")
+  mimeType      String   @map("mime_type")
+  changeSummary String?  @map("change_summary")
+  createdBy     String   @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  file     File          @relation(fields: [fileId], references: [id])
+  previews FilePreview[]
+
+  @@unique([fileId, versionNumber], map: "uq_file_versions_file_version")
+  @@index([fileId, versionNumber(sort: Desc)], map: "idx_file_versions_file_id")
+  @@index([tenantId], map: "idx_file_versions_tenant_id")
+  @@map("file_versions")
+  @@schema("storage")
+}
+
+model FilePermission {
+  id          String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String                    @map("tenant_id") @db.Uuid
+  fileId      String                    @map("file_id") @db.Uuid
+  granteeType FilePermissionGranteeType @map("grantee_type")
+  granteeId   String                    @map("grantee_id") @db.Uuid
+  permission  FilePermissionLevel
+  grantedBy   String                    @map("granted_by") @db.Uuid
+  expiresAt   DateTime?                 @map("expires_at") @db.Timestamptz(6)
+  createdAt   DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?                 @map("deleted_at") @db.Timestamptz(6)
+
+  file File @relation(fields: [fileId], references: [id])
+
+  @@unique([fileId, granteeType, granteeId, permission], map: "uq_file_permissions_grantee")
+  @@index([fileId], map: "idx_file_permissions_file_id")
+  @@index([tenantId, granteeType, granteeId], map: "idx_file_permissions_grantee")
+  @@map("file_permissions")
+  @@schema("storage")
+}
+
+model StorageQuota {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @unique @map("tenant_id") @db.Uuid
+  maxStorageBytes      BigInt    @map("max_storage_bytes")
+  maxFileCount         BigInt    @map("max_file_count")
+  maxSingleUploadBytes BigInt    @default(524288000) @map("max_single_upload_bytes")
+  usedStorageBytes     BigInt    @default(0) @map("used_storage_bytes")
+  usedFileCount        BigInt    @default(0) @map("used_file_count")
+  warningThresholdPct  Int       @default(80) @map("warning_threshold_pct") @db.SmallInt
+  hardLimitEnforced    Boolean   @default(true) @map("hard_limit_enforced")
+  lastReconciledAt     DateTime? @map("last_reconciled_at") @db.Timestamptz(6)
+  metadata             Json      @default("{}")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("storage_quotas")
+  @@schema("storage")
+}
+
+model FilePreview {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String        @map("tenant_id") @db.Uuid
+  fileId        String        @map("file_id") @db.Uuid
+  fileVersionId String        @map("file_version_id") @db.Uuid
+  previewType   PreviewType   @map("preview_type")
+  mimeType      String        @map("mime_type")
+  width         Int?
+  height        Int?
+  sizeBytes     BigInt        @map("size_bytes")
+  bucket        String
+  objectKey     String        @map("object_key")
+  status        PreviewStatus @default(pending)
+  generatedAt   DateTime?     @map("generated_at") @db.Timestamptz(6)
+  errorMessage  String?       @map("error_message")
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  file        File        @relation(fields: [fileId], references: [id])
+  fileVersion FileVersion @relation(fields: [fileVersionId], references: [id])
+
+  @@unique([fileVersionId, previewType], map: "uq_file_previews_version_type")
+  @@index([fileId], map: "idx_file_previews_file_id")
+  @@index([createdAt], map: "idx_file_previews_pending")
+  @@map("file_previews")
+  @@schema("storage")
+}
+
+model FileAttachment {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String         @map("tenant_id") @db.Uuid
+  fileId         String         @map("file_id") @db.Uuid
+  entityType     String         @map("entity_type")
+  entityId       String         @map("entity_id") @db.Uuid
+  attachmentRole AttachmentRole @default(supporting) @map("attachment_role")
+  displayName    String?        @map("display_name")
+  displayOrder   Int            @default(0) @map("display_order")
+  isPrimary      Boolean        @default(false) @map("is_primary")
+  metadata       Json           @default("{}")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  createdBy      String         @map("created_by") @db.Uuid
+  updatedBy      String?        @map("updated_by") @db.Uuid
+
+  file File @relation(fields: [fileId], references: [id])
+
+  @@unique([tenantId, fileId, entityType, entityId, attachmentRole], map: "uq_file_attachments_entity_file_role")
+  @@index([tenantId, entityType, entityId], map: "idx_file_attachments_entity")
+  @@index([fileId], map: "idx_file_attachments_file_id")
+  @@map("file_attachments")
+  @@schema("storage")
+}

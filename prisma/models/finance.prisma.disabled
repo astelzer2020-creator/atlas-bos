@@ -1,0 +1,490 @@
+// Finance bounded context — ledger schema
+// Requires: Organization, User from platform-core; Account from crm; SalesOrder from erp; ProductVariant from erp
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum GlAccountType {
+  asset
+  liability
+  equity
+  revenue
+  expense
+
+  @@schema("ledger")
+}
+
+enum NormalBalance {
+  debit
+  credit
+
+  @@schema("ledger")
+}
+
+enum TaxType {
+  sales
+  purchase
+  withholding
+  other
+
+  @@schema("ledger")
+}
+
+enum JournalEntryStatus {
+  draft
+  posted
+  reversed
+
+  @@schema("ledger")
+}
+
+enum JournalEntryType {
+  standard
+  adjusting
+  closing
+  reversing
+  system
+
+  @@schema("ledger")
+}
+
+enum InvoiceType {
+  sales
+  purchase
+  credit_note
+  debit_note
+
+  @@schema("ledger")
+}
+
+enum InvoiceStatus {
+  draft
+  sent
+  partial
+  paid
+  overdue
+  void
+
+  @@schema("ledger")
+}
+
+enum PaymentType {
+  receipt
+  disbursement
+  refund
+  transfer
+
+  @@schema("ledger")
+}
+
+enum PaymentMethod {
+  cash
+  check
+  bank_transfer
+  credit_card
+  ach
+  wire
+  stripe
+  other
+
+  @@schema("ledger")
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  void
+
+  @@schema("ledger")
+}
+
+enum BankAccountType {
+  checking
+  savings
+  credit_card
+  merchant
+  other
+
+  @@schema("ledger")
+}
+
+enum ReconciliationStatus {
+  in_progress
+  completed
+  void
+
+  @@schema("ledger")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Models
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ChartOfAccount {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String        @map("organization_id") @db.Uuid
+  parentAccountId  String?       @map("parent_account_id") @db.Uuid
+  code             String
+  name             String
+  description      String?
+  accountType      GlAccountType @map("account_type")
+  accountSubtype   String?       @map("account_subtype")
+  normalBalance    NormalBalance @map("normal_balance")
+  isActive         Boolean       @default(true) @map("is_active")
+  isSystem         Boolean       @default(false) @map("is_system")
+  isHeader         Boolean       @default(false) @map("is_header")
+  currencyCode     String        @default("USD") @map("currency_code") @db.Char(3)
+  metadata         Json          @default("{}")
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  createdBy        String?       @map("created_by") @db.Uuid
+  updatedBy        String?       @map("updated_by") @db.Uuid
+  version          Int           @default(1)
+
+  parentAccount   ChartOfAccount?  @relation("CoaHierarchy", fields: [parentAccountId], references: [id])
+  childAccounts   ChartOfAccount[] @relation("CoaHierarchy")
+  journalLines    JournalLine[]
+  invoiceLines    InvoiceLine[]
+  taxRates        TaxRate[]
+  budgets         Budget[]
+  bankAccounts    BankAccount[]
+
+  @@unique([organizationId, code], map: "uq_coa_org_code_active")
+  @@index([organizationId], map: "idx_coa_organization_id")
+  @@index([organizationId, parentAccountId], map: "idx_coa_org_parent")
+  @@index([organizationId, accountType], map: "idx_coa_org_type")
+  @@map("chart_of_accounts")
+  @@schema("ledger")
+}
+
+model TaxRate {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  code           String
+  name           String
+  rate           Decimal  @db.Decimal(7, 4)
+  taxType        TaxType  @default(sales) @map("tax_type")
+  isCompound     Boolean  @default(false) @map("is_compound")
+  isActive       Boolean  @default(true) @map("is_active")
+  effectiveFrom  DateTime @default(now()) @map("effective_from") @db.Date
+  effectiveTo    DateTime? @map("effective_to") @db.Date
+  glAccountId    String?  @map("gl_account_id") @db.Uuid
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedBy      String?  @map("updated_by") @db.Uuid
+  version        Int      @default(1)
+
+  glAccount    ChartOfAccount? @relation(fields: [glAccountId], references: [id])
+  journalLines JournalLine[]
+  invoiceLines InvoiceLine[]
+
+  @@unique([organizationId, code, effectiveFrom], map: "uq_tax_rates_org_code_from")
+  @@index([organizationId, isActive], map: "idx_tax_rates_org_active")
+  @@map("tax_rates")
+  @@schema("ledger")
+}
+
+model JournalEntry {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String             @map("organization_id") @db.Uuid
+  entryNumber     String             @map("entry_number")
+  entryDate       DateTime           @default(now()) @map("entry_date") @db.Date
+  postingDate     DateTime?          @map("posting_date") @db.Date
+  status          JournalEntryStatus @default(draft)
+  entryType       JournalEntryType   @default(standard) @map("entry_type")
+  description     String
+  referenceType   String?            @map("reference_type")
+  referenceId     String?            @map("reference_id") @db.Uuid
+  currencyCode    String             @default("USD") @map("currency_code") @db.Char(3)
+  totalDebit      Decimal            @default(0) @map("total_debit") @db.Decimal(19, 4)
+  totalCredit     Decimal            @default(0) @map("total_credit") @db.Decimal(19, 4)
+  reversedEntryId String?            @map("reversed_entry_id") @db.Uuid
+  postedBy        String?            @map("posted_by") @db.Uuid
+  postedAt        DateTime?          @map("posted_at") @db.Timestamptz(6)
+  metadata        Json               @default("{}")
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  createdBy       String?            @map("created_by") @db.Uuid
+  updatedBy       String?            @map("updated_by") @db.Uuid
+  version         Int                @default(1)
+
+  reversedEntry  JournalEntry?   @relation("JournalReversal", fields: [reversedEntryId], references: [id])
+  reversingEntries JournalEntry[] @relation("JournalReversal")
+  lines          JournalLine[]
+  invoices       Invoice[]
+  payments       Payment[]
+  payrollRuns    PayrollRun[]
+
+  @@unique([organizationId, entryNumber], map: "uq_journal_entries_org_number")
+  @@index([organizationId, entryDate(sort: Desc)], map: "idx_journal_entries_org_date")
+  @@index([organizationId, status], map: "idx_journal_entries_org_status")
+  @@index([organizationId, referenceType, referenceId], map: "idx_journal_entries_org_reference")
+  @@map("journal_entries")
+  @@schema("ledger")
+}
+
+model JournalLine {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  journalEntryId String   @map("journal_entry_id") @db.Uuid
+  lineNumber     Int      @map("line_number")
+  accountId      String   @map("account_id") @db.Uuid
+  description    String?
+  debitAmount    Decimal  @default(0) @map("debit_amount") @db.Decimal(19, 4)
+  creditAmount   Decimal  @default(0) @map("credit_amount") @db.Decimal(19, 4)
+  currencyCode   String   @default("USD") @map("currency_code") @db.Char(3)
+  taxRateId      String?  @map("tax_rate_id") @db.Uuid
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedBy      String?  @map("updated_by") @db.Uuid
+  version        Int      @default(1)
+
+  journalEntry JournalEntry   @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      ChartOfAccount @relation(fields: [accountId], references: [id])
+  taxRate      TaxRate?       @relation(fields: [taxRateId], references: [id])
+
+  @@unique([organizationId, journalEntryId, lineNumber], map: "uq_journal_lines_org_entry_line")
+  @@index([organizationId, accountId], map: "idx_journal_lines_org_account")
+  @@map("journal_lines")
+  @@schema("ledger")
+}
+
+model Invoice {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  invoiceNumber  String        @map("invoice_number")
+  invoiceType    InvoiceType   @default(sales) @map("invoice_type")
+  accountId      String?       @map("account_id") @db.Uuid
+  salesOrderId   String?       @map("sales_order_id") @db.Uuid
+  status         InvoiceStatus @default(draft)
+  issueDate      DateTime      @default(now()) @map("issue_date") @db.Date
+  dueDate        DateTime      @map("due_date") @db.Date
+  currencyCode   String        @default("USD") @map("currency_code") @db.Char(3)
+  subtotal       Decimal       @default(0) @db.Decimal(19, 4)
+  discountAmount Decimal       @default(0) @map("discount_amount") @db.Decimal(19, 4)
+  taxAmount      Decimal       @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  totalAmount    Decimal       @default(0) @map("total_amount") @db.Decimal(19, 4)
+  amountPaid     Decimal       @default(0) @map("amount_paid") @db.Decimal(19, 4)
+  billingAddress Json          @default("{}") @map("billing_address")
+  notes          String?
+  terms          String?
+  journalEntryId String?       @map("journal_entry_id") @db.Uuid
+  metadata       Json          @default("{}")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  createdBy      String?       @map("created_by") @db.Uuid
+  updatedBy      String?       @map("updated_by") @db.Uuid
+  version        Int           @default(1)
+
+  account             Account?             @relation(fields: [accountId], references: [id])
+  salesOrder          SalesOrder?          @relation(fields: [salesOrderId], references: [id])
+  journalEntry        JournalEntry?        @relation(fields: [journalEntryId], references: [id])
+  lines               InvoiceLine[]
+  paymentAllocations  PaymentAllocation[]
+
+  @@unique([organizationId, invoiceNumber], map: "uq_invoices_org_number")
+  @@index([organizationId, accountId], map: "idx_invoices_org_account")
+  @@index([organizationId, status, dueDate], map: "idx_invoices_org_status_due")
+  @@index([organizationId, salesOrderId], map: "idx_invoices_org_sales_order")
+  @@map("invoices")
+  @@schema("ledger")
+}
+
+model InvoiceLine {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  invoiceId        String   @map("invoice_id") @db.Uuid
+  lineNumber       Int      @map("line_number")
+  description      String
+  productVariantId String?  @map("product_variant_id") @db.Uuid
+  quantity         Decimal  @default(1) @db.Decimal(19, 6)
+  unitPrice        Decimal  @default(0) @map("unit_price") @db.Decimal(19, 4)
+  discountAmount   Decimal  @default(0) @map("discount_amount") @db.Decimal(19, 4)
+  taxRateId        String?  @map("tax_rate_id") @db.Uuid
+  taxAmount        Decimal  @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  lineTotal        Decimal  @default(0) @map("line_total") @db.Decimal(19, 4)
+  glAccountId      String?  @map("gl_account_id") @db.Uuid
+  metadata         Json     @default("{}")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy        String?  @map("created_by") @db.Uuid
+  updatedBy        String?  @map("updated_by") @db.Uuid
+  version          Int      @default(1)
+
+  invoice        Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id])
+  taxRate        TaxRate?        @relation(fields: [taxRateId], references: [id])
+  glAccount      ChartOfAccount? @relation(fields: [glAccountId], references: [id])
+
+  @@unique([organizationId, invoiceId, lineNumber], map: "uq_invoice_lines_org_invoice_line")
+  @@index([organizationId, invoiceId], map: "idx_invoice_lines_org_invoice")
+  @@map("invoice_lines")
+  @@schema("ledger")
+}
+
+model Payment {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String        @map("organization_id") @db.Uuid
+  paymentNumber   String        @map("payment_number")
+  paymentType     PaymentType   @default(receipt) @map("payment_type")
+  paymentMethod   PaymentMethod @default(bank_transfer) @map("payment_method")
+  status          PaymentStatus @default(pending)
+  accountId       String?       @map("account_id") @db.Uuid
+  bankAccountId   String?       @map("bank_account_id") @db.Uuid
+  paymentDate     DateTime      @default(now()) @map("payment_date") @db.Date
+  currencyCode    String        @default("USD") @map("currency_code") @db.Char(3)
+  amount          Decimal       @db.Decimal(19, 4)
+  amountAllocated Decimal       @default(0) @map("amount_allocated") @db.Decimal(19, 4)
+  exchangeRate    Decimal       @default(1) @map("exchange_rate") @db.Decimal(19, 8)
+  referenceNumber String?       @map("reference_number")
+  stripePaymentId String?       @map("stripe_payment_id")
+  journalEntryId  String?       @map("journal_entry_id") @db.Uuid
+  notes           String?
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  createdBy       String?       @map("created_by") @db.Uuid
+  updatedBy       String?       @map("updated_by") @db.Uuid
+  version         Int           @default(1)
+
+  account        Account?     @relation(fields: [accountId], references: [id])
+  bankAccount    BankAccount? @relation(fields: [bankAccountId], references: [id])
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  allocations    PaymentAllocation[]
+
+  @@unique([organizationId, paymentNumber], map: "uq_payments_org_number")
+  @@unique([organizationId, stripePaymentId], map: "uq_payments_stripe")
+  @@index([organizationId, accountId], map: "idx_payments_org_account")
+  @@index([organizationId, status], map: "idx_payments_org_status")
+  @@index([organizationId, bankAccountId], map: "idx_payments_org_bank")
+  @@map("payments")
+  @@schema("ledger")
+}
+
+model PaymentAllocation {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  paymentId      String   @map("payment_id") @db.Uuid
+  invoiceId      String   @map("invoice_id") @db.Uuid
+  amount         Decimal  @db.Decimal(19, 4)
+  allocatedAt    DateTime @default(now()) @map("allocated_at") @db.Timestamptz(6)
+  notes          String?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+
+  payment      Payment      @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id])
+
+  @@unique([organizationId, paymentId, invoiceId], map: "uq_payment_allocations_org_payment_invoice")
+  @@index([organizationId, invoiceId], map: "idx_payment_allocations_org_invoice")
+  @@index([organizationId, paymentId], map: "idx_payment_allocations_org_payment")
+  @@map("payment_allocations")
+  @@schema("ledger")
+}
+
+model Budget {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  accountId      String   @map("account_id") @db.Uuid
+  fiscalYear     Int      @map("fiscal_year")
+  period         Int
+  budgetAmount   Decimal  @default(0) @map("budget_amount") @db.Decimal(19, 4)
+  actualAmount   Decimal  @default(0) @map("actual_amount") @db.Decimal(19, 4)
+  currencyCode   String   @default("USD") @map("currency_code") @db.Char(3)
+  notes          String?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedBy      String?  @map("updated_by") @db.Uuid
+  version        Int      @default(1)
+
+  account      ChartOfAccount @relation(fields: [accountId], references: [id])
+
+  @@unique([organizationId, accountId, fiscalYear, period], map: "uq_budgets_org_account_year_period")
+  @@index([organizationId, fiscalYear, period], map: "idx_budgets_org_year")
+  @@map("budgets")
+  @@schema("ledger")
+}
+
+model BankAccount {
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String          @map("organization_id") @db.Uuid
+  glAccountId        String          @map("gl_account_id") @db.Uuid
+  name               String
+  bankName           String?         @map("bank_name")
+  accountNumber      String          @map("account_number")
+  accountNumberLast4 String          @map("account_number_last4") @db.Char(4)
+  routingNumber      String?         @map("routing_number")
+  iban               String?
+  swiftCode          String?         @map("swift_code")
+  currencyCode       String          @default("USD") @map("currency_code") @db.Char(3)
+  accountType        BankAccountType @default(checking) @map("account_type")
+  currentBalance     Decimal         @default(0) @map("current_balance") @db.Decimal(19, 4)
+  isActive           Boolean         @default(true) @map("is_active")
+  isPrimary          Boolean         @default(false) @map("is_primary")
+  plaidItemId        String?         @map("plaid_item_id")
+  stripeAccountId    String?         @map("stripe_account_id")
+  metadata           Json            @default("{}")
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  createdBy          String?         @map("created_by") @db.Uuid
+  updatedBy          String?         @map("updated_by") @db.Uuid
+  version            Int             @default(1)
+
+  glAccount        ChartOfAccount    @relation(fields: [glAccountId], references: [id])
+  payments         Payment[]
+  reconciliations  Reconciliation[]
+
+  @@index([organizationId], map: "idx_bank_accounts_organization_id")
+  @@index([organizationId, glAccountId], map: "idx_bank_accounts_org_gl")
+  @@map("bank_accounts")
+  @@schema("ledger")
+}
+
+model Reconciliation {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String               @map("organization_id") @db.Uuid
+  bankAccountId      String               @map("bank_account_id") @db.Uuid
+  status             ReconciliationStatus @default(in_progress)
+  periodStart        DateTime             @map("period_start") @db.Date
+  periodEnd          DateTime             @map("period_end") @db.Date
+  statementDate      DateTime             @map("statement_date") @db.Date
+  statementBalance   Decimal              @map("statement_balance") @db.Decimal(19, 4)
+  bookBalance        Decimal              @map("book_balance") @db.Decimal(19, 4)
+  reconciledBalance  Decimal?             @map("reconciled_balance") @db.Decimal(19, 4)
+  completedBy        String?              @map("completed_by") @db.Uuid
+  completedAt        DateTime?            @map("completed_at") @db.Timestamptz(6)
+  notes              String?
+  metadata           Json                 @default("{}")
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  createdBy          String?              @map("created_by") @db.Uuid
+  updatedBy          String?              @map("updated_by") @db.Uuid
+  version            Int                  @default(1)
+
+  bankAccount  BankAccount  @relation(fields: [bankAccountId], references: [id])
+
+  @@index([organizationId, bankAccountId], map: "idx_reconciliations_org_bank")
+  @@index([organizationId, status], map: "idx_reconciliations_org_status")
+  @@index([organizationId, bankAccountId, periodStart, periodEnd], map: "idx_reconciliations_org_period")
+  @@map("reconciliations")
+  @@schema("ledger")
+}
