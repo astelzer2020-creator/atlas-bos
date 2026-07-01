@@ -53,6 +53,7 @@ export const NAV_SECTIONS: readonly { title: string; items: readonly NavItem[] }
       { label: 'Agents', href: '/ai/agents' },
       { label: 'Runs', href: '/ai/runs' },
       { label: 'Knowledge Base', href: '/ai/knowledge' },
+      { label: 'Knowledge Base', href: '/ai/knowledge' },
     ],
   },
   {
