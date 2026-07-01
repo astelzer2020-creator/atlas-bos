@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1
+
+FROM node:20-alpine AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+FROM base AS builder
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
+COPY apps/api/package.json apps/api/
+COPY apps/worker/package.json apps/worker/
+COPY apps/web/package.json apps/web/
+COPY packages ./packages
+
+RUN pnpm install --frozen-lockfile
+
+COPY apps/worker ./apps/worker
+
+RUN pnpm --filter @atlas/database generate
+RUN pnpm --filter @atlas/worker... build
+RUN pnpm deploy --filter @atlas/worker --prod /prod/worker
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+RUN addgroup --system --gid 1001 atlas && \
+    adduser --system --uid 1001 --ingroup atlas atlas
+
+COPY --from=builder --chown=atlas:atlas /prod/worker .
+
+USER atlas
+
+EXPOSE 3002
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3002/health || exit 1
+
+CMD ["node", "dist/main.js"]
