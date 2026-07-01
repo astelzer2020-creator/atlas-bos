@@ -1,0 +1,347 @@
+// Analytics bounded context — metrics, dashboards, reports, exports
+// Schema: analytics
+// See: docs/database/19-analytics.md
+
+enum MetricCategory {
+  sales
+  finance
+  support
+  hr
+  projects
+  marketing
+  platform
+  ai
+  custom
+
+  @@schema("analytics")
+}
+
+enum AggregationMethod {
+  sum
+  avg
+  count
+  min
+  max
+  last
+  distinct_count
+
+  @@schema("analytics")
+}
+
+enum MetricValueType {
+  numeric
+  currency
+  percentage
+  duration
+  count
+
+  @@schema("analytics")
+}
+
+enum RefreshInterval {
+  realtime
+  hourly
+  daily
+  weekly
+
+  @@schema("analytics")
+}
+
+enum SnapshotGranularity {
+  hour
+  day
+  week
+  month
+  quarter
+  year
+
+  @@schema("analytics")
+}
+
+enum SnapshotSource {
+  aggregator
+  backfill
+  manual
+  import
+
+  @@schema("analytics")
+}
+
+enum DashboardVisibility {
+  private
+  team
+  tenant
+  public
+
+  @@schema("analytics")
+}
+
+enum WidgetType {
+  kpi
+  line_chart
+  bar_chart
+  pie_chart
+  table
+  funnel
+  gauge
+  map
+  text
+
+  @@schema("analytics")
+}
+
+enum ReportType {
+  standard
+  custom
+  compliance
+  executive
+
+  @@schema("analytics")
+}
+
+enum ReportOutputFormat {
+  pdf
+  csv
+  xlsx
+  json
+
+  @@schema("analytics")
+}
+
+enum ReportRunStatus {
+  pending
+  running
+  completed
+  failed
+  canceled
+
+  @@schema("analytics")
+}
+
+enum ReportTriggeredBy {
+  schedule
+  manual
+  api
+  workflow
+
+  @@schema("analytics")
+}
+
+enum DataExportType {
+  report
+  entity_dump
+  analytics
+  audit
+  custom
+
+  @@schema("analytics")
+}
+
+enum DataExportFormat {
+  csv
+  xlsx
+  json
+  parquet
+  pdf
+
+  @@schema("analytics")
+}
+
+enum DataExportStatus {
+  pending
+  processing
+  completed
+  failed
+  expired
+  canceled
+
+  @@schema("analytics")
+}
+
+model MetricDefinition {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code             String            @unique @db.Citext
+  name             String
+  description      String?
+  category         MetricCategory
+  unit             String
+  aggregationMethod AggregationMethod @map("aggregation_method")
+  valueType        MetricValueType   @default(numeric) @map("value_type")
+  computationRule  Json              @map("computation_rule")
+  sourceEventTypes String[]          @default([]) @map("source_event_types")
+  isTenantScoped   Boolean           @default(true) @map("is_tenant_scoped")
+  isActive         Boolean           @default(true) @map("is_active")
+  refreshInterval  RefreshInterval   @default(hourly) @map("refresh_interval")
+  retentionDays    Int               @default(365) @map("retention_days")
+  metadata         Json              @default("{}")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version          Int               @default(1)
+
+  snapshots MetricSnapshot[]
+  widgets   DashboardWidget[]
+
+  @@index([category], map: "idx_metric_definitions_category")
+  @@map("metric_definitions")
+  @@schema("analytics")
+}
+
+model MetricSnapshot {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String              @map("tenant_id") @db.Uuid
+  metricDefinitionId String              @map("metric_definition_id") @db.Uuid
+  granularity        SnapshotGranularity
+  periodStart        DateTime            @map("period_start") @db.Timestamptz(6)
+  periodEnd          DateTime            @map("period_end") @db.Timestamptz(6)
+  valueNumeric       Decimal?            @map("value_numeric") @db.Decimal(20, 6)
+  valueJson          Json?               @map("value_json")
+  dimensions         Json                @default("{}")
+  sampleCount        BigInt              @default(1) @map("sample_count")
+  computedAt         DateTime            @default(now()) @map("computed_at") @db.Timestamptz(6)
+  source             SnapshotSource      @default(aggregator)
+
+  metricDefinition MetricDefinition @relation(fields: [metricDefinitionId], references: [id])
+
+  @@index([tenantId, metricDefinitionId, periodStart(sort: Desc)], map: "idx_metric_snapshots_tenant_metric_range")
+  @@map("metric_snapshots")
+  @@schema("analytics")
+}
+
+model Dashboard {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String              @map("tenant_id") @db.Uuid
+  ownerUserId        String              @map("owner_user_id") @db.Uuid
+  name               String
+  description        String?
+  visibility         DashboardVisibility @default(private)
+  layoutConfig       Json                @default("{}") @map("layout_config")
+  filterDefaults     Json                @default("{}") @map("filter_defaults")
+  isDefault          Boolean             @default(false) @map("is_default")
+  isSystem           Boolean             @default(false) @map("is_system")
+  refreshIntervalSec Int                 @default(300) @map("refresh_interval_sec")
+  metadata           Json                @default("{}")
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  createdBy          String              @map("created_by") @db.Uuid
+  updatedBy          String?             @map("updated_by") @db.Uuid
+  version            Int                 @default(1)
+
+  widgets DashboardWidget[]
+
+  @@index([tenantId, ownerUserId], map: "idx_dashboards_tenant_owner")
+  @@map("dashboards")
+  @@schema("analytics")
+}
+
+model DashboardWidget {
+  id                   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String      @map("tenant_id") @db.Uuid
+  dashboardId          String      @map("dashboard_id") @db.Uuid
+  metricDefinitionId   String?     @map("metric_definition_id") @db.Uuid
+  widgetType           WidgetType  @map("widget_type")
+  title                String
+  positionX            Int         @default(0) @map("position_x") @db.SmallInt
+  positionY            Int         @default(0) @map("position_y") @db.SmallInt
+  width                Int         @default(4) @db.SmallInt
+  height               Int         @default(3) @db.SmallInt
+  queryConfig          Json        @default("{}") @map("query_config")
+  visualizationConfig  Json        @default("{}") @map("visualization_config")
+  displayOrder         Int         @default(0) @map("display_order")
+  createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt            DateTime?   @map("deleted_at") @db.Timestamptz(6)
+
+  dashboard        Dashboard         @relation(fields: [dashboardId], references: [id])
+  metricDefinition MetricDefinition? @relation(fields: [metricDefinitionId], references: [id])
+
+  @@index([dashboardId, displayOrder], map: "idx_dashboard_widgets_dashboard")
+  @@map("dashboard_widgets")
+  @@schema("analytics")
+}
+
+model Report {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String             @map("tenant_id") @db.Uuid
+  ownerUserId      String             @map("owner_user_id") @db.Uuid
+  name             String
+  description      String?
+  reportType       ReportType         @map("report_type")
+  queryDefinition  Json               @map("query_definition")
+  outputFormat     ReportOutputFormat @default(pdf) @map("output_format")
+  scheduleCron     String?            @map("schedule_cron")
+  scheduleTimezone String             @default("UTC") @map("schedule_timezone")
+  recipients       Json               @default("[]")
+  isActive         Boolean            @default(true) @map("is_active")
+  lastRunAt        DateTime?          @map("last_run_at") @db.Timestamptz(6)
+  nextRunAt        DateTime?          @map("next_run_at") @db.Timestamptz(6)
+  metadata         Json               @default("{}")
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  createdBy        String             @map("created_by") @db.Uuid
+  updatedBy        String?            @map("updated_by") @db.Uuid
+  version          Int                @default(1)
+
+  runs ReportRun[]
+
+  @@index([tenantId], map: "idx_reports_tenant_active")
+  @@index([nextRunAt], map: "idx_reports_next_run")
+  @@map("reports")
+  @@schema("analytics")
+}
+
+model DataExport {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String           @map("tenant_id") @db.Uuid
+  requestedBy   String           @map("requested_by") @db.Uuid
+  exportType    DataExportType   @map("export_type")
+  entityType    String?          @map("entity_type")
+  queryFilter   Json             @default("{}") @map("query_filter")
+  outputFormat  DataExportFormat @map("output_format")
+  status        DataExportStatus @default(pending)
+  rowCount      BigInt?          @map("row_count")
+  fileSizeBytes BigInt?          @map("file_size_bytes")
+  bucket        String?
+  objectKey     String?          @map("object_key")
+  downloadUrl   String?          @map("download_url")
+  expiresAt     DateTime?        @map("expires_at") @db.Timestamptz(6)
+  startedAt     DateTime?        @map("started_at") @db.Timestamptz(6)
+  completedAt   DateTime?        @map("completed_at") @db.Timestamptz(6)
+  errorMessage  String?          @map("error_message")
+  metadata      Json             @default("{}")
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  reportRuns ReportRun[]
+
+  @@index([tenantId, requestedBy, createdAt(sort: Desc)], map: "idx_data_exports_tenant_user")
+  @@index([expiresAt], map: "idx_data_exports_expires")
+  @@map("data_exports")
+  @@schema("analytics")
+}
+
+model ReportRun {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String            @map("tenant_id") @db.Uuid
+  reportId          String            @map("report_id") @db.Uuid
+  status            ReportRunStatus   @default(pending)
+  triggeredBy       ReportTriggeredBy @default(schedule) @map("triggered_by")
+  triggeredByUserId String?           @map("triggered_by_user_id") @db.Uuid
+  startedAt         DateTime?         @map("started_at") @db.Timestamptz(6)
+  completedAt       DateTime?         @map("completed_at") @db.Timestamptz(6)
+  rowCount          BigInt?           @map("row_count")
+  fileSizeBytes     BigInt?           @map("file_size_bytes")
+  errorMessage      String?           @map("error_message")
+  parameters        Json              @default("{}")
+  dataExportId      String?           @map("data_export_id") @db.Uuid
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  report     Report      @relation(fields: [reportId], references: [id])
+  dataExport DataExport? @relation(fields: [dataExportId], references: [id])
+
+  @@index([reportId, createdAt(sort: Desc)], map: "idx_report_runs_report")
+  @@index([tenantId, status], map: "idx_report_runs_tenant_status")
+  @@map("report_runs")
+  @@schema("analytics")
+}

@@ -1,0 +1,161 @@
+// Audit & Events bounded context — audit log, domain events, outbox, temporal versions
+// Schema: atlas_audit
+// See: docs/database/20-audit-events.md
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  RESTORE
+  ACCESS
+  EXPORT
+  PERMISSION_CHANGE
+
+  @@schema("atlas_audit")
+}
+
+enum AuditActorType {
+  user
+  system
+  api_key
+  agent
+  workflow
+  platform_admin
+
+  @@schema("atlas_audit")
+}
+
+enum DeadLetterSource {
+  event_outbox
+  domain_events
+  webhook_delivery
+
+  @@schema("atlas_audit")
+}
+
+enum DeadLetterResolution {
+  replayed
+  discarded
+  manual_fix
+
+  @@schema("atlas_audit")
+}
+
+model AuditLogEntry {
+  id             BigInt         @id @default(autoincrement())
+  tenantId       String?        @map("tenant_id") @db.Uuid
+  entityType     String         @map("entity_type")
+  entityId       String         @map("entity_id") @db.Uuid
+  action         AuditAction
+  actorId        String?        @map("actor_id") @db.Uuid
+  actorType      AuditActorType @default(user) @map("actor_type")
+  changes        Json?
+  previousState  Json?          @map("previous_state")
+  newState       Json?          @map("new_state")
+  metadata       Json           @default("{}")
+  correlationId  String?        @map("correlation_id")
+  requestId      String?        @map("request_id")
+  ipAddress      String?        @map("ip_address")
+  userAgent      String?        @map("user_agent")
+  occurredAt     DateTime       @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  @@index([tenantId, entityType, entityId, occurredAt(sort: Desc)], map: "idx_audit_log_entries_tenant_entity")
+  @@index([tenantId, actorId, occurredAt(sort: Desc)], map: "idx_audit_log_entries_actor")
+  @@index([correlationId], map: "idx_audit_log_entries_correlation")
+  @@index([occurredAt(sort: Desc)], map: "idx_audit_log_entries_occurred")
+  @@map("audit_log_entries")
+  @@schema("atlas_audit")
+}
+
+model DomainEvent {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String?        @map("tenant_id") @db.Uuid
+  eventType      String         @map("event_type")
+  eventVersion   Int            @default(1) @map("event_version")
+  aggregateType  String         @map("aggregate_type")
+  aggregateId    String         @map("aggregate_id") @db.Uuid
+  payload        Json
+  metadata       Json           @default("{}")
+  correlationId  String?        @map("correlation_id")
+  causationId    String?        @map("causation_id")
+  actorId        String?        @map("actor_id") @db.Uuid
+  actorType      AuditActorType @default(system) @map("actor_type")
+  occurredAt     DateTime       @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  publishedAt    DateTime       @default(now()) @map("published_at") @db.Timestamptz(6)
+  sequenceNumber BigInt         @map("sequence_number")
+
+  @@index([tenantId, aggregateType, aggregateId, occurredAt(sort: Desc)], map: "idx_domain_events_tenant_aggregate")
+  @@index([eventType, occurredAt(sort: Desc)], map: "idx_domain_events_type")
+  @@map("domain_events")
+  @@schema("atlas_audit")
+}
+
+model EventOutbox {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String?   @map("tenant_id") @db.Uuid
+  aggregateType   String    @map("aggregate_type")
+  aggregateId     String    @map("aggregate_id") @db.Uuid
+  eventType       String    @map("event_type")
+  eventVersion    Int       @default(1) @map("event_version")
+  payload         Json
+  metadata        Json      @default("{}")
+  correlationId   String?   @map("correlation_id")
+  causationId     String?   @map("causation_id")
+  priority        Int       @default(3) @db.SmallInt
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  publishedAt     DateTime? @map("published_at") @db.Timestamptz(6)
+  publishAttempts Int       @default(0) @map("publish_attempts")
+  lastAttemptAt   DateTime? @map("last_attempt_at") @db.Timestamptz(6)
+  lastError       String?   @map("last_error")
+  lockedBy        String?   @map("locked_by")
+  lockedAt        DateTime? @map("locked_at") @db.Timestamptz(6)
+
+  @@index([createdAt], map: "idx_event_outbox_unpublished")
+  @@index([priority, createdAt], map: "idx_event_outbox_priority_unpublished")
+  @@index([tenantId, aggregateType, aggregateId], map: "idx_event_outbox_tenant_aggregate")
+  @@map("event_outbox")
+  @@schema("atlas_audit")
+}
+
+model EventDeadLetter {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String?               @map("tenant_id") @db.Uuid
+  sourceTable      DeadLetterSource      @map("source_table")
+  sourceId         String                @map("source_id") @db.Uuid
+  eventType        String                @map("event_type")
+  payload          Json
+  metadata         Json                  @default("{}")
+  failureReason    String                @map("failure_reason")
+  failureCount     Int                   @default(1) @map("failure_count")
+  firstFailedAt    DateTime              @map("first_failed_at") @db.Timestamptz(6)
+  lastFailedAt     DateTime              @default(now()) @map("last_failed_at") @db.Timestamptz(6)
+  resolvedAt       DateTime?             @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy       String?               @map("resolved_by") @db.Uuid
+  resolutionAction DeadLetterResolution? @map("resolution_action")
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([lastFailedAt(sort: Desc)], map: "idx_event_dead_letter_unresolved")
+  @@index([tenantId, eventType], map: "idx_event_dead_letter_tenant")
+  @@map("event_dead_letter")
+  @@schema("atlas_audit")
+}
+
+model EntityVersion {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  entityType    String   @map("entity_type")
+  entityId      String   @map("entity_id") @db.Uuid
+  versionNumber Int      @map("version_number")
+  validFrom     DateTime @default(now()) @map("valid_from") @db.Timestamptz(6)
+  validTo       DateTime @default(dbgenerated("'infinity'::timestamptz")) @map("valid_to") @db.Timestamptz(6)
+  state         Json
+  changeReason  String?  @map("change_reason")
+  changedBy     String?  @map("changed_by") @db.Uuid
+  changedAt     DateTime @default(now()) @map("changed_at") @db.Timestamptz(6)
+  isCurrent     Boolean  @default(true) @map("is_current")
+
+  @@index([tenantId, entityType, entityId, validFrom(sort: Desc)], map: "idx_entity_versions_temporal")
+  @@index([tenantId, entityType, entityId, validFrom, validTo], map: "idx_entity_versions_as_of")
+  @@map("entity_versions")
+  @@schema("atlas_audit")
+}

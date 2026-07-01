@@ -1,0 +1,383 @@
+// Automation & Workflow bounded context — schema: automation
+
+enum AutomationRuleStatus {
+  draft
+  enabled
+  disabled
+  archived
+
+  @@schema("automation")
+}
+
+enum RetryBackoffType {
+  fixed
+  exponential
+  linear
+
+  @@schema("automation")
+}
+
+enum AutomationTriggerType {
+  event
+  schedule
+  webhook
+  manual
+  entity_change
+
+  @@schema("automation")
+}
+
+enum AutomationActionType {
+  send_notification
+  send_email
+  update_entity
+  create_entity
+  webhook_call
+  invoke_agent
+  start_workflow
+  tag_entity
+  delay
+  condition_branch
+
+  @@schema("automation")
+}
+
+enum ActionOnFailure {
+  stop
+  continue
+  retry
+  compensate
+
+  @@schema("automation")
+}
+
+enum WorkflowDefinitionStatus {
+  draft
+  published
+  deprecated
+  archived
+
+  @@schema("automation")
+}
+
+enum WorkflowInstanceStatus {
+  running
+  waiting
+  completed
+  failed
+  cancelled
+  compensating
+  suspended
+
+  @@schema("automation")
+}
+
+enum WorkflowInitiatorType {
+  user
+  automation
+  agent
+  system
+  api
+
+  @@schema("automation")
+}
+
+enum WorkflowNodeType {
+  start_event
+  end_event
+  exclusive_gateway
+  parallel_gateway
+  inclusive_gateway
+  human_task
+  service_task
+  agent_task
+  timer_event
+  sub_workflow
+  compensation_handler
+
+  @@schema("automation")
+}
+
+enum WorkflowStepStatus {
+  pending
+  active
+  waiting
+  completed
+  failed
+  skipped
+  compensated
+
+  @@schema("automation")
+}
+
+enum WorkflowAssigneeType {
+  user
+  role
+  team
+  agent
+
+  @@schema("automation")
+}
+
+enum WorkflowApprovalType {
+  single
+  any_of
+  all_of
+  sequential
+
+  @@schema("automation")
+}
+
+enum WorkflowApprovalStatus {
+  pending
+  approved
+  rejected
+  expired
+  delegated
+  cancelled
+
+  @@schema("automation")
+}
+
+model AutomationRule {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String               @map("organization_id") @db.Uuid
+  name                String
+  description         String?
+  status              AutomationRuleStatus @default(draft)
+  ruleVersion         Int                  @default(1) @map("rule_version")
+  templateId          String?              @map("template_id")
+  ownerId             String?              @map("owner_id") @db.Uuid
+  maxExecutionsHour   Int?                 @default(100) @map("max_executions_hour")
+  maxExecutionsDay    Int?                 @default(1000) @map("max_executions_day")
+  concurrencyLimit    Int?                 @default(5) @map("concurrency_limit")
+  retryMaxAttempts    Int?                 @default(3) @map("retry_max_attempts")
+  retryBackoff        RetryBackoffType?    @default(exponential) @map("retry_backoff")
+  dryRunAvailable     Boolean              @default(true) @map("dry_run_available")
+  lastExecutedAt      DateTime?            @map("last_executed_at") @db.Timestamptz(6)
+  executionCount      BigInt               @default(0) @map("execution_count")
+  tags                String[]             @default([])
+  settings            Json                 @default("{}")
+  metadata            Json                 @default("{}")
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy           String?              @map("created_by") @db.Uuid
+  updatedBy           String?              @map("updated_by") @db.Uuid
+  deletedAt           DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  version             Int                  @default(1)
+
+  triggers AutomationTrigger[]
+  actions  AutomationAction[]
+
+  @@unique([organizationId, name, ruleVersion], map: "uq_automation_rules_org_name_version_active")
+  @@index([organizationId, status], map: "idx_automation_rules_status")
+  @@map("automation_rules")
+  @@schema("automation")
+}
+
+model AutomationTrigger {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String                @map("organization_id") @db.Uuid
+  ruleId           String                @map("rule_id") @db.Uuid
+  triggerOrder     Int                   @default(0) @map("trigger_order")
+  triggerType      AutomationTriggerType @map("trigger_type")
+  eventType        String?               @map("event_type")
+  scheduleCron     String?               @map("schedule_cron")
+  scheduleTimezone String?               @default("UTC") @map("schedule_timezone")
+  webhookPath      String?               @map("webhook_path")
+  filterExpression String?               @map("filter_expression")
+  filterJson       Json                  @default("{}") @map("filter_json")
+  isActive         Boolean               @default(true) @map("is_active")
+  metadata         Json                  @default("{}")
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy        String?               @map("created_by") @db.Uuid
+  updatedBy        String?               @map("updated_by") @db.Uuid
+  deletedAt        DateTime?             @map("deleted_at") @db.Timestamptz(6)
+  version          Int                   @default(1)
+
+  rule AutomationRule @relation(fields: [ruleId], references: [id])
+
+  @@index([ruleId, triggerOrder], map: "idx_automation_triggers_rule")
+  @@index([organizationId, eventType], map: "idx_automation_triggers_event")
+  @@map("automation_triggers")
+  @@schema("automation")
+}
+
+model AutomationAction {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String               @map("organization_id") @db.Uuid
+  ruleId              String               @map("rule_id") @db.Uuid
+  actionOrder         Int                  @map("action_order")
+  actionType          AutomationActionType @map("action_type")
+  name                String
+  config              Json                 @default("{}")
+  conditionExpression String?              @map("condition_expression")
+  onFailure           ActionOnFailure      @default(stop) @map("on_failure")
+  timeoutSeconds      Int?                 @default(30) @map("timeout_seconds")
+  isActive            Boolean              @default(true) @map("is_active")
+  metadata            Json                 @default("{}")
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy           String?              @map("created_by") @db.Uuid
+  updatedBy           String?              @map("updated_by") @db.Uuid
+  deletedAt           DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  version             Int                  @default(1)
+
+  rule AutomationRule @relation(fields: [ruleId], references: [id])
+
+  @@unique([ruleId, actionOrder], map: "uq_automation_actions_order_active")
+  @@index([ruleId, actionOrder], map: "idx_automation_actions_rule")
+  @@map("automation_actions")
+  @@schema("automation")
+}
+
+model WorkflowDefinition {
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId         String?                  @map("organization_id") @db.Uuid
+  name                   String
+  slug                   String
+  description            String?
+  definitionVersion      Int                      @default(1) @map("definition_version")
+  status                 WorkflowDefinitionStatus @default(draft)
+  category               String                   @default("general")
+  graphDefinition        Json                     @default("{}") @map("graph_definition")
+  slaPolicies            Json                     @default("{}") @map("sla_policies")
+  compensationHandlers   Json                     @default("{}") @map("compensation_handlers")
+  inputSchema            Json                     @default("{}") @map("input_schema")
+  outputSchema           Json                     @default("{}") @map("output_schema")
+  estimatedDurationHours Int?                     @map("estimated_duration_hours")
+  isTemplate             Boolean                  @default(false) @map("is_template")
+  publishedAt            DateTime?                @map("published_at") @db.Timestamptz(6)
+  deprecatedAt           DateTime?                @map("deprecated_at") @db.Timestamptz(6)
+  metadata               Json                     @default("{}")
+  createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy              String?                  @map("created_by") @db.Uuid
+  updatedBy              String?                  @map("updated_by") @db.Uuid
+  deletedAt              DateTime?                @map("deleted_at") @db.Timestamptz(6)
+  version                Int                      @default(1)
+
+  instances WorkflowInstance[]
+
+  @@index([status, category], map: "idx_workflow_definitions_status")
+  @@map("workflow_definitions")
+  @@schema("automation")
+}
+
+model WorkflowInstance {
+  id                 String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String                 @map("organization_id") @db.Uuid
+  definitionId       String                 @map("definition_id") @db.Uuid
+  definitionVersion  Int                    @map("definition_version")
+  parentInstanceId   String?                @map("parent_instance_id") @db.Uuid
+  status             WorkflowInstanceStatus @default(running)
+  entityType         String?                @map("entity_type")
+  entityId           String?                @map("entity_id") @db.Uuid
+  correlationId      String?                @map("correlation_id")
+  initiatorType      WorkflowInitiatorType  @default(user) @map("initiator_type")
+  initiatorId        String?                @map("initiator_id") @db.Uuid
+  currentNodeId      String?                @map("current_node_id")
+  contextVariables   Json                   @default("{}") @map("context_variables")
+  inputPayload       Json                   @default("{}") @map("input_payload")
+  outputPayload      Json?                  @map("output_payload")
+  errorDetails       Json?                  @map("error_details")
+  startedAt          DateTime               @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt        DateTime?              @map("completed_at") @db.Timestamptz(6)
+  dueAt              DateTime?              @map("due_at") @db.Timestamptz(6)
+  slaBreachAt        DateTime?              @map("sla_breach_at") @db.Timestamptz(6)
+  tokenCount         Int                    @default(1) @map("token_count")
+  metadata           Json                   @default("{}")
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy          String?                @map("created_by") @db.Uuid
+  updatedBy          String?                @map("updated_by") @db.Uuid
+  deletedAt          DateTime?              @map("deleted_at") @db.Timestamptz(6)
+  version            Int                    @default(1)
+
+  definition     WorkflowDefinition  @relation(fields: [definitionId], references: [id])
+  parentInstance WorkflowInstance?   @relation("WorkflowInstanceHierarchy", fields: [parentInstanceId], references: [id])
+  childInstances WorkflowInstance[]  @relation("WorkflowInstanceHierarchy")
+  steps          WorkflowStep[]
+  approvals      WorkflowApproval[]
+
+  @@index([organizationId, status, startedAt(sort: Desc)], map: "idx_workflow_instances_org_status")
+  @@index([organizationId, entityType, entityId], map: "idx_workflow_instances_entity")
+  @@index([organizationId, correlationId], map: "idx_workflow_instances_correlation")
+  @@index([dueAt], map: "idx_workflow_instances_sla")
+  @@map("workflow_instances")
+  @@schema("automation")
+}
+
+model WorkflowStep {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String              @map("organization_id") @db.Uuid
+  instanceId     String              @map("instance_id") @db.Uuid
+  nodeId         String              @map("node_id")
+  nodeType       WorkflowNodeType    @map("node_type")
+  stepName       String?             @map("step_name")
+  status         WorkflowStepStatus  @default(pending)
+  assigneeId     String?             @map("assignee_id") @db.Uuid
+  assigneeType   WorkflowAssigneeType? @map("assignee_type")
+  tokenId        String              @map("token_id")
+  inputData      Json                @default("{}") @map("input_data")
+  outputData     Json?               @map("output_data")
+  agentRunId     String?             @map("agent_run_id") @db.Uuid
+  errorMessage   String?             @map("error_message")
+  retryCount     Int                 @default(0) @map("retry_count")
+  startedAt      DateTime?           @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime?           @map("completed_at") @db.Timestamptz(6)
+  dueAt          DateTime?           @map("due_at") @db.Timestamptz(6)
+  metadata       Json                @default("{}")
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy      String?             @map("created_by") @db.Uuid
+  updatedBy      String?             @map("updated_by") @db.Uuid
+  deletedAt      DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  version        Int                 @default(1)
+
+  instance  WorkflowInstance   @relation(fields: [instanceId], references: [id])
+  approvals WorkflowApproval[]
+
+  @@index([instanceId, status], map: "idx_workflow_steps_instance")
+  @@index([organizationId, assigneeId, status], map: "idx_workflow_steps_assignee")
+  @@index([dueAt], map: "idx_workflow_steps_due")
+  @@map("workflow_steps")
+  @@schema("automation")
+}
+
+model WorkflowApproval {
+  id               String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String                 @map("organization_id") @db.Uuid
+  instanceId       String                 @map("instance_id") @db.Uuid
+  stepId           String                 @map("step_id") @db.Uuid
+  approvalType     WorkflowApprovalType   @default(single) @map("approval_type")
+  status           WorkflowApprovalStatus @default(pending)
+  title            String
+  description      String?
+  assigneeIds      String[]               @default([]) @map("assignee_ids") @db.Uuid
+  approvedBy       String?                @map("approved_by") @db.Uuid
+  rejectedBy       String?                @map("rejected_by") @db.Uuid
+  formData         Json                   @default("{}") @map("form_data")
+  diffPreview      Json?                  @map("diff_preview")
+  requestedAt      DateTime               @default(now()) @map("requested_at") @db.Timestamptz(6)
+  expiresAt        DateTime?              @map("expires_at") @db.Timestamptz(6)
+  resolvedAt       DateTime?              @map("resolved_at") @db.Timestamptz(6)
+  resolutionNote   String?                @map("resolution_note")
+  escalationLevel  Int                    @default(0) @map("escalation_level")
+  metadata         Json                   @default("{}")
+  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy        String?                @map("created_by") @db.Uuid
+  updatedBy        String?                @map("updated_by") @db.Uuid
+  deletedAt        DateTime?              @map("deleted_at") @db.Timestamptz(6)
+  version          Int                    @default(1)
+
+  instance WorkflowInstance @relation(fields: [instanceId], references: [id])
+  step     WorkflowStep     @relation(fields: [stepId], references: [id])
+
+  @@index([organizationId, status, requestedAt], map: "idx_workflow_approvals_pending")
+  @@index([instanceId], map: "idx_workflow_approvals_instance")
+  @@map("workflow_approvals")
+  @@schema("automation")
+}

@@ -1,0 +1,413 @@
+// Billing & Subscription bounded context — Platform SaaS billing (Plane A)
+// Schema: billing
+// See: docs/database/16-billing-subscription.md
+
+enum SubscriptionTier {
+  starter
+  professional
+  business
+  enterprise
+
+  @@schema("billing")
+}
+
+enum BillingInterval {
+  month
+  year
+  week
+  day
+
+  @@schema("billing")
+}
+
+enum StripeTaxExempt {
+  none
+  exempt
+  reverse
+
+  @@schema("billing")
+}
+
+enum SubscriptionStatus {
+  incomplete
+  incomplete_expired
+  trialing
+  active
+  past_due
+  canceled
+  unpaid
+  paused
+
+  @@schema("billing")
+}
+
+enum CollectionMethod {
+  charge_automatically
+  send_invoice
+
+  @@schema("billing")
+}
+
+enum SubscriptionItemType {
+  plan
+  addon
+  metered
+
+  @@schema("billing")
+}
+
+enum UsageAggregationType {
+  sum
+  max
+  last_during_period
+  count
+
+  @@schema("billing")
+}
+
+enum UsageRecordSource {
+  api
+  worker
+  backfill
+  reconciliation
+
+  @@schema("billing")
+}
+
+enum PaymentMethodType {
+  card
+  us_bank_account
+  sepa_debit
+  link
+  apple_pay
+  google_pay
+
+  @@schema("billing")
+}
+
+enum PaymentMethodStatus {
+  active
+  expired
+  failed
+  detached
+
+  @@schema("billing")
+}
+
+enum BillingInvoiceStatus {
+  draft
+  open
+  paid
+  void
+  uncollectible
+
+  @@schema("billing")
+}
+
+enum BillingInvoiceLineType {
+  subscription
+  usage
+  addon
+  credit
+  tax
+  discount
+
+  @@schema("billing")
+}
+
+enum DunningAttemptStatus {
+  pending
+  retrying
+  succeeded
+  failed
+  exhausted
+  canceled
+
+  @@schema("billing")
+}
+
+model SubscriptionPlan {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code            String           @unique @db.Citext
+  name            String
+  description     String?
+  tier            SubscriptionTier
+  billingInterval BillingInterval  @map("billing_interval")
+  baseAmountCents BigInt           @map("base_amount_cents")
+  currency        String           @default("USD") @db.Char(3)
+  includedSeats   Int              @default(1) @map("included_seats")
+  stripeProductId String           @map("stripe_product_id")
+  stripePriceId   String           @unique @map("stripe_price_id")
+  trialDays       Int              @default(14) @map("trial_days")
+  isActive        Boolean          @default(true) @map("is_active")
+  isPublic        Boolean          @default(true) @map("is_public")
+  entitlements    Json             @default("{}")
+  metadata        Json             @default("{}")
+  effectiveFrom   DateTime         @default(now()) @map("effective_from") @db.Timestamptz(6)
+  effectiveTo     DateTime?        @map("effective_to") @db.Timestamptz(6)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version         Int              @default(1)
+
+  subscriptions     Subscription[]
+  subscriptionItems SubscriptionItem[]
+
+  @@index([tier, billingInterval], map: "idx_subscription_plans_active")
+  @@map("subscription_plans")
+  @@schema("billing")
+}
+
+model StripeCustomerMapping {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String          @unique @map("tenant_id") @db.Uuid
+  stripeCustomerId String          @unique @map("stripe_customer_id")
+  stripeAccountId  String?         @map("stripe_account_id")
+  defaultCurrency  String          @default("USD") @map("default_currency") @db.Char(3)
+  taxExempt        StripeTaxExempt @default(none) @map("tax_exempt")
+  billingEmail     String?         @map("billing_email") @db.Citext
+  metadata         Json            @default("{}")
+  syncedAt         DateTime        @default(now()) @map("synced_at") @db.Timestamptz(6)
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  subscriptions  Subscription[]
+  paymentMethods PaymentMethod[]
+
+  @@map("stripe_customer_mappings")
+  @@schema("billing")
+}
+
+model Subscription {
+  id                       String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                 String             @map("tenant_id") @db.Uuid
+  subscriptionPlanId       String             @map("subscription_plan_id") @db.Uuid
+  stripeCustomerMappingId  String             @map("stripe_customer_mapping_id") @db.Uuid
+  stripeSubscriptionId     String?            @unique @map("stripe_subscription_id")
+  status                   SubscriptionStatus @default(incomplete)
+  quantity                 Int                @default(1)
+  currentPeriodStart       DateTime?          @map("current_period_start") @db.Timestamptz(6)
+  currentPeriodEnd         DateTime?          @map("current_period_end") @db.Timestamptz(6)
+  trialStart               DateTime?          @map("trial_start") @db.Timestamptz(6)
+  trialEnd                 DateTime?          @map("trial_end") @db.Timestamptz(6)
+  cancelAtPeriodEnd        Boolean            @default(false) @map("cancel_at_period_end")
+  canceledAt               DateTime?          @map("canceled_at") @db.Timestamptz(6)
+  endedAt                  DateTime?          @map("ended_at") @db.Timestamptz(6)
+  pauseCollection          Json?              @map("pause_collection")
+  collectionMethod         CollectionMethod   @default(charge_automatically) @map("collection_method")
+  defaultPaymentMethodId   String?            @map("default_payment_method_id") @db.Uuid
+  metadata                 Json               @default("{}")
+  createdAt                DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt                DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  createdBy                String?            @map("created_by") @db.Uuid
+  updatedBy                String?            @map("updated_by") @db.Uuid
+  version                  Int                @default(1)
+
+  subscriptionPlan      SubscriptionPlan      @relation(fields: [subscriptionPlanId], references: [id])
+  stripeCustomerMapping StripeCustomerMapping @relation(fields: [stripeCustomerMappingId], references: [id])
+  items               SubscriptionItem[]
+  usageRecords        UsageRecord[]
+  billingInvoices     BillingInvoice[]
+  dunningAttempts     DunningAttempt[]
+
+  @@index([tenantId], map: "idx_subscriptions_tenant_id")
+  @@index([status], map: "idx_subscriptions_status")
+  @@index([currentPeriodEnd], map: "idx_subscriptions_period_end")
+  @@map("subscriptions")
+  @@schema("billing")
+}
+
+model SubscriptionItem {
+  id                       String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                 String               @map("tenant_id") @db.Uuid
+  subscriptionId           String               @map("subscription_id") @db.Uuid
+  stripeSubscriptionItemId String?              @unique @map("stripe_subscription_item_id")
+  itemType                 SubscriptionItemType @map("item_type")
+  subscriptionPlanId       String?              @map("subscription_plan_id") @db.Uuid
+  usageMeterId             String?              @map("usage_meter_id") @db.Uuid
+  quantity                 Int                  @default(1)
+  unitAmountCents          BigInt?              @map("unit_amount_cents")
+  currency                 String               @default("USD") @db.Char(3)
+  metadata                 Json                 @default("{}")
+  createdAt                DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt                DateTime?            @map("deleted_at") @db.Timestamptz(6)
+
+  subscription     Subscription      @relation(fields: [subscriptionId], references: [id])
+  subscriptionPlan SubscriptionPlan? @relation(fields: [subscriptionPlanId], references: [id])
+  usageMeter       UsageMeter?       @relation(fields: [usageMeterId], references: [id])
+  invoiceLines     BillingInvoiceLine[]
+
+  @@index([subscriptionId], map: "idx_subscription_items_subscription_id")
+  @@index([tenantId], map: "idx_subscription_items_tenant_id")
+  @@map("subscription_items")
+  @@schema("billing")
+}
+
+model UsageMeter {
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code            String               @unique @db.Citext
+  name            String
+  description     String?
+  aggregationType UsageAggregationType @map("aggregation_type")
+  stripeMeterId   String?              @map("stripe_meter_id")
+  stripePriceId   String?              @map("stripe_price_id")
+  unitLabel       String               @map("unit_label")
+  eventName       String               @map("event_name")
+  isActive        Boolean              @default(true) @map("is_active")
+  metadata        Json                 @default("{}")
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  subscriptionItems SubscriptionItem[]
+  usageRecords      UsageRecord[]
+  invoiceLines      BillingInvoiceLine[]
+
+  @@index([code], map: "idx_usage_meters_active")
+  @@map("usage_meters")
+  @@schema("billing")
+}
+
+model UsageRecord {
+  id                     String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String            @map("tenant_id") @db.Uuid
+  subscriptionId         String            @map("subscription_id") @db.Uuid
+  usageMeterId           String            @map("usage_meter_id") @db.Uuid
+  idempotencyKey         String            @map("idempotency_key")
+  quantity               Decimal           @db.Decimal(20, 6)
+  unit                   String
+  recordedAt             DateTime          @map("recorded_at") @db.Timestamptz(6)
+  aggregationWindowStart DateTime?         @map("aggregation_window_start") @db.Timestamptz(6)
+  aggregationWindowEnd   DateTime?         @map("aggregation_window_end") @db.Timestamptz(6)
+  isAggregated           Boolean           @default(false) @map("is_aggregated")
+  stripeUsageRecordId    String?           @map("stripe_usage_record_id")
+  submittedToStripeAt    DateTime?         @map("submitted_to_stripe_at") @db.Timestamptz(6)
+  source                 UsageRecordSource @default(api)
+  metadata               Json              @default("{}")
+  createdAt              DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+  usageMeter   UsageMeter   @relation(fields: [usageMeterId], references: [id])
+
+  @@index([tenantId, usageMeterId, aggregationWindowStart], map: "idx_usage_records_tenant_meter_window")
+  @@index([recordedAt], map: "idx_usage_records_unsubmitted")
+  @@map("usage_records")
+  @@schema("billing")
+}
+
+model PaymentMethod {
+  id                       String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                 String              @map("tenant_id") @db.Uuid
+  stripeCustomerMappingId  String              @map("stripe_customer_mapping_id") @db.Uuid
+  stripePaymentMethodId    String              @unique @map("stripe_payment_method_id")
+  type                     PaymentMethodType
+  cardBrand                String?             @map("card_brand")
+  cardLast4                String?             @map("card_last4") @db.Char(4)
+  cardExpMonth             Int?                @map("card_exp_month") @db.SmallInt
+  cardExpYear              Int?                @map("card_exp_year") @db.SmallInt
+  bankName                 String?             @map("bank_name")
+  bankLast4                String?             @map("bank_last4") @db.Char(4)
+  isDefault                Boolean             @default(false) @map("is_default")
+  billingDetails           Json                @default("{}") @map("billing_details")
+  status                   PaymentMethodStatus @default(active)
+  createdAt                DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt                DateTime?           @map("deleted_at") @db.Timestamptz(6)
+
+  stripeCustomerMapping StripeCustomerMapping @relation(fields: [stripeCustomerMappingId], references: [id])
+
+  @@index([tenantId], map: "idx_payment_methods_tenant_id")
+  @@map("payment_methods")
+  @@schema("billing")
+}
+
+model BillingInvoice {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String               @map("tenant_id") @db.Uuid
+  subscriptionId   String               @map("subscription_id") @db.Uuid
+  stripeInvoiceId  String?              @unique @map("stripe_invoice_id")
+  invoiceNumber    String               @map("invoice_number")
+  status           BillingInvoiceStatus @default(draft)
+  currency         String               @db.Char(3)
+  subtotalCents    BigInt               @default(0) @map("subtotal_cents")
+  taxCents         BigInt               @default(0) @map("tax_cents")
+  totalCents       BigInt               @default(0) @map("total_cents")
+  amountPaidCents  BigInt               @default(0) @map("amount_paid_cents")
+  amountDueCents   BigInt               @default(0) @map("amount_due_cents")
+  periodStart      DateTime             @map("period_start") @db.Timestamptz(6)
+  periodEnd        DateTime             @map("period_end") @db.Timestamptz(6)
+  dueDate          DateTime?            @map("due_date") @db.Timestamptz(6)
+  paidAt           DateTime?            @map("paid_at") @db.Timestamptz(6)
+  voidedAt         DateTime?            @map("voided_at") @db.Timestamptz(6)
+  hostedInvoiceUrl String?              @map("hosted_invoice_url")
+  invoicePdfUrl    String?              @map("invoice_pdf_url")
+  metadata         Json                 @default("{}")
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  subscription    Subscription         @relation(fields: [subscriptionId], references: [id])
+  lines           BillingInvoiceLine[]
+  dunningAttempts DunningAttempt[]
+
+  @@unique([tenantId, invoiceNumber], map: "uq_billing_invoices_number")
+  @@index([tenantId, status, createdAt(sort: Desc)], map: "idx_billing_invoices_tenant_status")
+  @@index([subscriptionId], map: "idx_billing_invoices_subscription_id")
+  @@map("billing_invoices")
+  @@schema("billing")
+}
+
+model BillingInvoiceLine {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                 @map("tenant_id") @db.Uuid
+  billingInvoiceId     String                 @map("billing_invoice_id") @db.Uuid
+  stripeInvoiceLineId  String?                @map("stripe_invoice_line_id")
+  lineType             BillingInvoiceLineType @map("line_type")
+  description          String
+  quantity             Decimal                @default(1) @db.Decimal(12, 4)
+  unitAmountCents      BigInt                 @map("unit_amount_cents")
+  amountCents          BigInt                 @map("amount_cents")
+  currency             String                 @db.Char(3)
+  periodStart          DateTime?              @map("period_start") @db.Timestamptz(6)
+  periodEnd            DateTime?              @map("period_end") @db.Timestamptz(6)
+  usageMeterId         String?                @map("usage_meter_id") @db.Uuid
+  subscriptionItemId   String?                @map("subscription_item_id") @db.Uuid
+  metadata             Json                   @default("{}")
+  createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  billingInvoice   BillingInvoice    @relation(fields: [billingInvoiceId], references: [id])
+  usageMeter       UsageMeter?       @relation(fields: [usageMeterId], references: [id])
+  subscriptionItem SubscriptionItem? @relation(fields: [subscriptionItemId], references: [id])
+
+  @@index([billingInvoiceId], map: "idx_billing_invoice_lines_invoice_id")
+  @@index([tenantId], map: "idx_billing_invoice_lines_tenant_id")
+  @@map("billing_invoice_lines")
+  @@schema("billing")
+}
+
+model DunningAttempt {
+  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String                 @map("tenant_id") @db.Uuid
+  subscriptionId        String                 @map("subscription_id") @db.Uuid
+  billingInvoiceId      String?                @map("billing_invoice_id") @db.Uuid
+  attemptNumber         Int                    @map("attempt_number")
+  stage                 Int
+  stripeInvoiceId       String?                @map("stripe_invoice_id")
+  stripePaymentIntentId String?                @map("stripe_payment_intent_id")
+  status                DunningAttemptStatus
+  failureCode           String?                @map("failure_code")
+  failureMessage        String?                @map("failure_message")
+  nextRetryAt           DateTime?              @map("next_retry_at") @db.Timestamptz(6)
+  notificationSentAt    DateTime?              @map("notification_sent_at") @db.Timestamptz(6)
+  resolvedAt            DateTime?              @map("resolved_at") @db.Timestamptz(6)
+  metadata              Json                   @default("{}")
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  subscription   Subscription    @relation(fields: [subscriptionId], references: [id])
+  billingInvoice BillingInvoice? @relation(fields: [billingInvoiceId], references: [id])
+
+  @@index([subscriptionId, createdAt(sort: Desc)], map: "idx_dunning_attempts_subscription")
+  @@index([nextRetryAt], map: "idx_dunning_attempts_next_retry")
+  @@map("dunning_attempts")
+  @@schema("billing")
+}

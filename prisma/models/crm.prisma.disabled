@@ -1,0 +1,391 @@
+// CRM bounded context — customer schema
+// Requires: Organization, User models from platform-core.prisma
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum CrmAccountType {
+  prospect
+  customer
+  partner
+  vendor
+  competitor
+  other
+
+  @@schema("customer")
+}
+
+enum AccountStatus {
+  active
+  inactive
+  archived
+
+  @@schema("customer")
+}
+
+enum ContactStatus {
+  active
+  inactive
+  bounced
+  unsubscribed
+
+  @@schema("customer")
+}
+
+enum LeadSource {
+  website
+  referral
+  advertisement
+  cold_call
+  trade_show
+  partner
+  social_media
+  other
+
+  @@schema("customer")
+}
+
+enum LeadStatus {
+  new
+  contacted
+  qualified
+  converted
+  disqualified
+
+  @@schema("customer")
+}
+
+enum LeadRating {
+  hot
+  warm
+  cold
+
+  @@schema("customer")
+}
+
+enum DealStatus {
+  open
+  won
+  lost
+  abandoned
+
+  @@schema("customer")
+}
+
+enum DealActivityType {
+  call
+  email
+  meeting
+  task
+  note
+  demo
+  proposal
+  other
+
+  @@schema("customer")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Models
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Account {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String        @map("organization_id") @db.Uuid
+  externalId      String?       @map("external_id")
+  name            String
+  legalName       String?       @map("legal_name")
+  accountType     CrmAccountType @default(prospect) @map("account_type")
+  industry        String?
+  website         String?
+  phone           String?
+  email           String?       @db.Citext
+  billingAddress  Json          @default("{}") @map("billing_address")
+  shippingAddress Json          @default("{}") @map("shipping_address")
+  annualRevenue   Decimal?      @map("annual_revenue") @db.Decimal(19, 4)
+  employeeCount   Int?          @map("employee_count")
+  currencyCode    String        @default("USD") @map("currency_code") @db.Char(3)
+  parentAccountId String?       @map("parent_account_id") @db.Uuid
+  ownerId         String?       @map("owner_id") @db.Uuid
+  status          AccountStatus @default(active)
+  description     String?
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  createdBy       String?       @map("created_by") @db.Uuid
+  updatedBy       String?       @map("updated_by") @db.Uuid
+  version         Int           @default(1)
+
+  parentAccount Account?    @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
+  childAccounts Account[]   @relation("AccountHierarchy")
+  contacts      Contact[]
+  deals         Deal[]
+  leadsConverted Lead[]     @relation("LeadConvertedAccount")
+
+  ancestorEdges   AccountHierarchy[] @relation("HierarchyAncestor")
+  descendantEdges AccountHierarchy[] @relation("HierarchyDescendant")
+  salesOrders     SalesOrder[]
+  invoices        Invoice[]
+  payments        Payment[]
+
+  @@unique([organizationId, externalId], map: "uq_accounts_org_external_id")
+  @@index([organizationId], map: "idx_accounts_organization_id")
+  @@index([organizationId, ownerId], map: "idx_accounts_org_owner_active")
+  @@index([organizationId, parentAccountId], map: "idx_accounts_org_parent_active")
+  @@index([organizationId, accountType, status], map: "idx_accounts_org_type_status_active")
+  @@map("accounts")
+  @@schema("customer")
+}
+
+model Contact {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String        @map("organization_id") @db.Uuid
+  externalId      String?       @map("external_id")
+  accountId       String?       @map("account_id") @db.Uuid
+  salutation      String?
+  firstName       String?       @map("first_name")
+  lastName        String?       @map("last_name")
+  displayName     String        @map("display_name")
+  email           String?       @db.Citext
+  phone           String?
+  mobile          String?
+  jobTitle        String?       @map("job_title")
+  department      String?
+  mailingAddress  Json          @default("{}") @map("mailing_address")
+  isPrimary       Boolean       @default(false) @map("is_primary")
+  ownerId         String?       @map("owner_id") @db.Uuid
+  leadSource      String?       @map("lead_source")
+  status          ContactStatus @default(active)
+  lastContactedAt DateTime?     @map("last_contacted_at") @db.Timestamptz(6)
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  createdBy       String?       @map("created_by") @db.Uuid
+  updatedBy       String?       @map("updated_by") @db.Uuid
+  version         Int           @default(1)
+
+  account        Account?      @relation(fields: [accountId], references: [id])
+  deals          Deal[]
+  dealActivities DealActivity[]
+  contactTags    ContactTag[]
+  leadsConverted Lead[]        @relation("LeadConvertedContact")
+  salesOrders    SalesOrder[]
+
+  @@unique([organizationId, externalId], map: "uq_contacts_org_external_id")
+  @@index([organizationId], map: "idx_contacts_organization_id")
+  @@index([organizationId, accountId], map: "idx_contacts_org_account_active")
+  @@index([organizationId, ownerId], map: "idx_contacts_org_owner_active")
+  @@index([organizationId, lastContactedAt(sort: Desc)], map: "idx_contacts_org_last_contacted")
+  @@map("contacts")
+  @@schema("customer")
+}
+
+model Lead {
+  id                  String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String      @map("organization_id") @db.Uuid
+  externalId          String?     @map("external_id")
+  firstName           String?     @map("first_name")
+  lastName            String?     @map("last_name")
+  displayName         String      @map("display_name")
+  email               String?     @db.Citext
+  phone               String?
+  companyName         String?     @map("company_name")
+  jobTitle            String?     @map("job_title")
+  leadSource          LeadSource  @default(website) @map("lead_source")
+  status              LeadStatus  @default(new)
+  rating              LeadRating?
+  score               Int         @default(0)
+  assignedToId        String?     @map("assigned_to_id") @db.Uuid
+  convertedAt         DateTime?   @map("converted_at") @db.Timestamptz(6)
+  convertedContactId  String?     @map("converted_contact_id") @db.Uuid
+  convertedAccountId  String?     @map("converted_account_id") @db.Uuid
+  convertedDealId     String?     @map("converted_deal_id") @db.Uuid
+  disqualifyReason    String?     @map("disqualify_reason")
+  metadata            Json        @default("{}")
+  createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt           DateTime?   @map("deleted_at") @db.Timestamptz(6)
+  createdBy           String?     @map("created_by") @db.Uuid
+  updatedBy           String?     @map("updated_by") @db.Uuid
+  version             Int         @default(1)
+
+  convertedContact Contact?     @relation("LeadConvertedContact", fields: [convertedContactId], references: [id])
+  convertedAccount Account?     @relation("LeadConvertedAccount", fields: [convertedAccountId], references: [id])
+  convertedDeal    Deal?        @relation("LeadConvertedDeal", fields: [convertedDealId], references: [id])
+
+  @@unique([organizationId, externalId], map: "uq_leads_org_external_id")
+  @@index([organizationId], map: "idx_leads_organization_id")
+  @@index([organizationId, status], map: "idx_leads_org_status_active")
+  @@index([organizationId, assignedToId], map: "idx_leads_org_assigned_active")
+  @@index([organizationId, score(sort: Desc)], map: "idx_leads_org_score_active")
+  @@map("leads")
+  @@schema("customer")
+}
+
+model PipelineStage {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  pipelineId     String   @default(dbgenerated("gen_random_uuid()")) @map("pipeline_id") @db.Uuid
+  pipelineName   String   @default("Default Pipeline") @map("pipeline_name")
+  name           String
+  description    String?
+  sortOrder      Int      @map("sort_order")
+  probability    Int      @default(0)
+  isDefault      Boolean  @default(false) @map("is_default")
+  isWon          Boolean  @default(false) @map("is_won")
+  isLost         Boolean  @default(false) @map("is_lost")
+  isClosed       Boolean  @default(false) @map("is_closed")
+  color          String?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedBy      String?  @map("updated_by") @db.Uuid
+  version        Int      @default(1)
+
+  deals        Deal[]
+
+  @@unique([organizationId, pipelineId, sortOrder], map: "uq_pipeline_stages_org_pipeline_order")
+  @@index([organizationId], map: "idx_pipeline_stages_organization_id")
+  @@index([organizationId, pipelineId, sortOrder], map: "idx_pipeline_stages_org_pipeline_active")
+  @@map("pipeline_stages")
+  @@schema("customer")
+}
+
+model Deal {
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String     @map("organization_id") @db.Uuid
+  externalId        String?    @map("external_id")
+  name              String
+  accountId         String?    @map("account_id") @db.Uuid
+  contactId         String?    @map("contact_id") @db.Uuid
+  pipelineStageId   String     @map("pipeline_stage_id") @db.Uuid
+  ownerId           String     @map("owner_id") @db.Uuid
+  amount            Decimal    @default(0) @db.Decimal(19, 4)
+  currencyCode      String     @default("USD") @map("currency_code") @db.Char(3)
+  probability       Int        @default(0)
+  expectedCloseDate DateTime?  @map("expected_close_date") @db.Date
+  actualCloseDate   DateTime?  @map("actual_close_date") @db.Date
+  status            DealStatus @default(open)
+  lossReason        String?    @map("loss_reason")
+  leadSource        String?    @map("lead_source")
+  description       String?
+  metadata          Json       @default("{}")
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?  @map("deleted_at") @db.Timestamptz(6)
+  createdBy         String?    @map("created_by") @db.Uuid
+  updatedBy         String?    @map("updated_by") @db.Uuid
+  version           Int        @default(1)
+
+  account       Account?      @relation(fields: [accountId], references: [id])
+  contact       Contact?      @relation(fields: [contactId], references: [id])
+  pipelineStage PipelineStage @relation(fields: [pipelineStageId], references: [id])
+  activities    DealActivity[]
+  leadsConverted Lead[]       @relation("LeadConvertedDeal")
+  salesOrders    SalesOrder[]
+
+  @@unique([organizationId, externalId], map: "uq_deals_org_external_id")
+  @@index([organizationId], map: "idx_deals_organization_id")
+  @@index([organizationId, pipelineStageId], map: "idx_deals_org_stage_active")
+  @@index([organizationId, ownerId], map: "idx_deals_org_owner_active")
+  @@index([organizationId, accountId], map: "idx_deals_org_account_active")
+  @@index([organizationId, status, expectedCloseDate], map: "idx_deals_org_status_close_date")
+  @@map("deals")
+  @@schema("customer")
+}
+
+model DealActivity {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String           @map("organization_id") @db.Uuid
+  dealId          String           @map("deal_id") @db.Uuid
+  activityType    DealActivityType @map("activity_type")
+  subject         String
+  description     String?
+  scheduledAt     DateTime?        @map("scheduled_at") @db.Timestamptz(6)
+  completedAt     DateTime?        @map("completed_at") @db.Timestamptz(6)
+  durationMinutes Int?             @map("duration_minutes")
+  outcome         String?
+  assignedToId    String?          @map("assigned_to_id") @db.Uuid
+  contactId       String?          @map("contact_id") @db.Uuid
+  isCompleted     Boolean          @default(false) @map("is_completed")
+  metadata        Json             @default("{}")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdBy       String?          @map("created_by") @db.Uuid
+  updatedBy       String?          @map("updated_by") @db.Uuid
+  version         Int              @default(1)
+
+  deal         Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  contact      Contact?     @relation(fields: [contactId], references: [id])
+
+  @@index([organizationId], map: "idx_deal_activities_organization_id")
+  @@index([organizationId, dealId, createdAt(sort: Desc)], map: "idx_deal_activities_org_deal_active")
+  @@index([organizationId, assignedToId, scheduledAt], map: "idx_deal_activities_org_assigned_scheduled")
+  @@index([organizationId, activityType], map: "idx_deal_activities_org_type_active")
+  @@map("deal_activities")
+  @@schema("customer")
+}
+
+model Tag {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  color          String?
+  description    String?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedBy      String?  @map("updated_by") @db.Uuid
+  version        Int      @default(1)
+
+  contactTags  ContactTag[]
+
+  @@index([organizationId], map: "idx_tags_organization_id")
+  @@map("tags")
+  @@schema("customer")
+}
+
+model ContactTag {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  contactId      String   @map("contact_id") @db.Uuid
+  tagId          String   @map("tag_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+
+  contact      Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag          Tag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, contactId, tagId], map: "uq_contact_tags_org_contact_tag")
+  @@index([organizationId, tagId], map: "idx_contact_tags_org_tag")
+  @@index([organizationId, contactId], map: "idx_contact_tags_org_contact")
+  @@map("contact_tags")
+  @@schema("customer")
+}
+
+model AccountHierarchy {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  ancestorId     String   @map("ancestor_id") @db.Uuid
+  descendantId   String   @map("descendant_id") @db.Uuid
+  depth          Int
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+
+  ancestor     Account      @relation("HierarchyAncestor", fields: [ancestorId], references: [id], onDelete: Cascade)
+  descendant   Account      @relation("HierarchyDescendant", fields: [descendantId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, ancestorId, descendantId], map: "uq_account_hierarchy_org_ancestor_descendant")
+  @@index([organizationId, ancestorId, depth], map: "idx_account_hierarchy_org_ancestor")
+  @@index([organizationId, descendantId, depth], map: "idx_account_hierarchy_org_descendant")
+  @@map("account_hierarchy")
+  @@schema("customer")
+}
