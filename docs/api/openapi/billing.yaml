@@ -1,0 +1,976 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS Billing API
+  version: 1.0.0
+  description: |
+    REST API for the Billing bounded context (schema: `billing`).
+    Resources: Subscriptions, Plans, Usage, Invoices, PaymentMethods.
+servers:
+  - url: https://api.atlas.example.com
+security:
+  - bearerAuth: []
+tags:
+  - name: Plans
+  - name: Subscriptions
+  - name: Usage
+  - name: Invoices
+  - name: PaymentMethods
+paths:
+  /v1/plans:
+    get:
+      operationId: listSubscriptionPlans
+      tags: [Plans]
+      summary: List public subscription plans (catalog)
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: tier
+          in: query
+          schema:
+            $ref: '#/components/schemas/SubscriptionTier'
+        - name: billingInterval
+          in: query
+          schema:
+            $ref: '#/components/schemas/BillingInterval'
+        - name: isPublic
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Paginated plan catalog
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlanListResponse'
+  /v1/plans/{planId}:
+    get:
+      operationId: getSubscriptionPlan
+      tags: [Plans]
+      summary: Get subscription plan by ID
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/planId'
+      responses:
+        '200':
+          description: Plan details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/organizations/{organizationId}/subscriptions:
+    get:
+      operationId: listSubscriptions
+      tags: [Subscriptions]
+      summary: List organization subscriptions
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/SubscriptionStatus'
+      responses:
+        '200':
+          description: Paginated subscription list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionListResponse'
+    post:
+      operationId: createSubscription
+      tags: [Subscriptions]
+      summary: Create a new subscription
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionCreate'
+      responses:
+        '201':
+          description: Subscription created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+  /v1/organizations/{organizationId}/subscriptions/{subscriptionId}:
+    get:
+      operationId: getSubscription
+      tags: [Subscriptions]
+      summary: Get subscription by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/subscriptionId'
+      responses:
+        '200':
+          description: Subscription details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateSubscription
+      tags: [Subscriptions]
+      summary: Update subscription (quantity, plan change)
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/subscriptionId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionUpdate'
+      responses:
+        '200':
+          description: Subscription updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+  /v1/organizations/{organizationId}/subscriptions/{subscriptionId}/cancel:
+    post:
+      operationId: cancelSubscription
+      tags: [Subscriptions]
+      summary: Cancel subscription at period end or immediately
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/subscriptionId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cancelAtPeriodEnd:
+                  type: boolean
+                  default: true
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Subscription cancellation scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+  /v1/organizations/{organizationId}/usage:
+    get:
+      operationId: getUsageSummary
+      tags: [Usage]
+      summary: Get usage summary for current billing period
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - name: periodStart
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: periodEnd
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: meterCode
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Usage summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageSummaryResponse'
+  /v1/organizations/{organizationId}/usage/records:
+    get:
+      operationId: listUsageRecords
+      tags: [Usage]
+      summary: List usage records
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: subscriptionId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: usageMeterId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated usage records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageRecordListResponse'
+    post:
+      operationId: recordUsage
+      tags: [Usage]
+      summary: Record metered usage
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsageRecordCreate'
+      responses:
+        '201':
+          description: Usage recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageRecord'
+  /v1/organizations/{organizationId}/invoices:
+    get:
+      operationId: listInvoices
+      tags: [Invoices]
+      summary: List billing invoices
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/BillingInvoiceStatus'
+        - name: subscriptionId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated invoice list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingInvoiceListResponse'
+  /v1/organizations/{organizationId}/invoices/{invoiceId}:
+    get:
+      operationId: getInvoice
+      tags: [Invoices]
+      summary: Get invoice with line items
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/invoiceId'
+      responses:
+        '200':
+          description: Invoice details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingInvoiceDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/organizations/{organizationId}/payment-methods:
+    get:
+      operationId: listPaymentMethods
+      tags: [PaymentMethods]
+      summary: List payment methods
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/PaymentMethodStatus'
+      responses:
+        '200':
+          description: Paginated payment method list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethodListResponse'
+    post:
+      operationId: attachPaymentMethod
+      tags: [PaymentMethods]
+      summary: Attach a payment method (Stripe setup intent flow)
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentMethodAttach'
+      responses:
+        '201':
+          description: Payment method attached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethod'
+  /v1/organizations/{organizationId}/payment-methods/{paymentMethodId}:
+    get:
+      operationId: getPaymentMethod
+      tags: [PaymentMethods]
+      summary: Get payment method by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/paymentMethodId'
+      responses:
+        '200':
+          description: Payment method details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethod'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: detachPaymentMethod
+      tags: [PaymentMethods]
+      summary: Detach a payment method
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/paymentMethodId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '204':
+          description: Payment method detached
+  /v1/organizations/{organizationId}/payment-methods/{paymentMethodId}/set-default:
+    post:
+      operationId: setDefaultPaymentMethod
+      tags: [PaymentMethods]
+      summary: Set default payment method for billing
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/paymentMethodId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: Default payment method updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethod'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    organizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    planId:
+      name: planId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    subscriptionId:
+      name: subscriptionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    invoiceId:
+      name: invoiceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    paymentMethodId:
+      name: paymentMethodId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ifMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+    Pagination:
+      type: object
+      required: [has_more, limit]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+    SubscriptionTier:
+      type: string
+      enum: [starter, professional, business, enterprise]
+    BillingInterval:
+      type: string
+      enum: [month, year, week, day]
+    SubscriptionStatus:
+      type: string
+      enum: [incomplete, incomplete_expired, trialing, active, past_due, canceled, unpaid, paused]
+    CollectionMethod:
+      type: string
+      enum: [charge_automatically, send_invoice]
+    SubscriptionItemType:
+      type: string
+      enum: [plan, addon, metered]
+    UsageRecordSource:
+      type: string
+      enum: [api, worker, backfill, reconciliation]
+    PaymentMethodType:
+      type: string
+      enum: [card, us_bank_account, sepa_debit, link, apple_pay, google_pay]
+    PaymentMethodStatus:
+      type: string
+      enum: [active, expired, failed, detached]
+    BillingInvoiceStatus:
+      type: string
+      enum: [draft, open, paid, void, uncollectible]
+    BillingInvoiceLineType:
+      type: string
+      enum: [subscription, usage, addon, credit, tax, discount]
+    SubscriptionPlan:
+      type: object
+      required: [id, code, name, tier, billingInterval, baseAmountCents, currency]
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        tier:
+          $ref: '#/components/schemas/SubscriptionTier'
+        billingInterval:
+          $ref: '#/components/schemas/BillingInterval'
+        baseAmountCents:
+          type: string
+          description: int64 as string
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        includedSeats:
+          type: integer
+        trialDays:
+          type: integer
+        isActive:
+          type: boolean
+        isPublic:
+          type: boolean
+        entitlements:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+    SubscriptionPlanListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubscriptionPlan'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    SubscriptionItem:
+      type: object
+      required: [id, itemType, quantity]
+      properties:
+        id:
+          type: string
+          format: uuid
+        itemType:
+          $ref: '#/components/schemas/SubscriptionItemType'
+        subscriptionPlanId:
+          type: string
+          format: uuid
+          nullable: true
+        usageMeterId:
+          type: string
+          format: uuid
+          nullable: true
+        quantity:
+          type: integer
+        unitAmountCents:
+          type: string
+          nullable: true
+        currency:
+          type: string
+    Subscription:
+      type: object
+      required: [id, organizationId, subscriptionPlanId, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+          description: Maps to tenantId in billing schema
+        subscriptionPlanId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/SubscriptionStatus'
+        quantity:
+          type: integer
+        currentPeriodStart:
+          type: string
+          format: date-time
+          nullable: true
+        currentPeriodEnd:
+          type: string
+          format: date-time
+          nullable: true
+        trialStart:
+          type: string
+          format: date-time
+          nullable: true
+        trialEnd:
+          type: string
+          format: date-time
+          nullable: true
+        cancelAtPeriodEnd:
+          type: boolean
+        canceledAt:
+          type: string
+          format: date-time
+          nullable: true
+        collectionMethod:
+          $ref: '#/components/schemas/CollectionMethod'
+        defaultPaymentMethodId:
+          type: string
+          format: uuid
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    SubscriptionDetail:
+      allOf:
+        - $ref: '#/components/schemas/Subscription'
+        - type: object
+          properties:
+            plan:
+              $ref: '#/components/schemas/SubscriptionPlan'
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/SubscriptionItem'
+    SubscriptionCreate:
+      type: object
+      required: [subscriptionPlanId]
+      properties:
+        subscriptionPlanId:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          default: 1
+        paymentMethodId:
+          type: string
+          format: uuid
+        trialDays:
+          type: integer
+        metadata:
+          type: object
+          additionalProperties: true
+    SubscriptionUpdate:
+      type: object
+      properties:
+        subscriptionPlanId:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+        defaultPaymentMethodId:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+    SubscriptionListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Subscription'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    UsageMeterSummary:
+      type: object
+      required: [meterCode, meterName, quantity, unit]
+      properties:
+        usageMeterId:
+          type: string
+          format: uuid
+        meterCode:
+          type: string
+        meterName:
+          type: string
+        quantity:
+          type: string
+          description: Decimal (20,6) as string
+        unit:
+          type: string
+        periodStart:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+    UsageSummaryResponse:
+      type: object
+      required: [organizationId, meters]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        subscriptionId:
+          type: string
+          format: uuid
+          nullable: true
+        periodStart:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+        meters:
+          type: array
+          items:
+            $ref: '#/components/schemas/UsageMeterSummary'
+    UsageRecord:
+      type: object
+      required: [id, organizationId, subscriptionId, usageMeterId, quantity, unit, recordedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        subscriptionId:
+          type: string
+          format: uuid
+        usageMeterId:
+          type: string
+          format: uuid
+        idempotencyKey:
+          type: string
+        quantity:
+          type: string
+          description: Decimal (20,6) as string
+        unit:
+          type: string
+        recordedAt:
+          type: string
+          format: date-time
+        aggregationWindowStart:
+          type: string
+          format: date-time
+          nullable: true
+        aggregationWindowEnd:
+          type: string
+          format: date-time
+          nullable: true
+        isAggregated:
+          type: boolean
+        source:
+          $ref: '#/components/schemas/UsageRecordSource'
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+    UsageRecordCreate:
+      type: object
+      required: [subscriptionId, usageMeterId, quantity, unit, idempotencyKey]
+      properties:
+        subscriptionId:
+          type: string
+          format: uuid
+        usageMeterId:
+          type: string
+          format: uuid
+        quantity:
+          type: string
+        unit:
+          type: string
+        idempotencyKey:
+          type: string
+        recordedAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+    UsageRecordListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UsageRecord'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    BillingInvoiceLine:
+      type: object
+      required: [id, lineType, description, amountCents, currency]
+      properties:
+        id:
+          type: string
+          format: uuid
+        lineType:
+          $ref: '#/components/schemas/BillingInvoiceLineType'
+        description:
+          type: string
+        quantity:
+          type: string
+        unitAmountCents:
+          type: string
+        amountCents:
+          type: string
+        currency:
+          type: string
+        periodStart:
+          type: string
+          format: date-time
+          nullable: true
+        periodEnd:
+          type: string
+          format: date-time
+          nullable: true
+    BillingInvoice:
+      type: object
+      required: [id, organizationId, subscriptionId, invoiceNumber, status, currency, totalCents]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        subscriptionId:
+          type: string
+          format: uuid
+        invoiceNumber:
+          type: string
+        status:
+          $ref: '#/components/schemas/BillingInvoiceStatus'
+        currency:
+          type: string
+        subtotalCents:
+          type: string
+        taxCents:
+          type: string
+        totalCents:
+          type: string
+        amountPaidCents:
+          type: string
+        amountDueCents:
+          type: string
+        periodStart:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+        paidAt:
+          type: string
+          format: date-time
+          nullable: true
+        hostedInvoiceUrl:
+          type: string
+          format: uri
+          nullable: true
+        invoicePdfUrl:
+          type: string
+          format: uri
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    BillingInvoiceDetail:
+      allOf:
+        - $ref: '#/components/schemas/BillingInvoice'
+        - type: object
+          properties:
+            lines:
+              type: array
+              items:
+                $ref: '#/components/schemas/BillingInvoiceLine'
+    BillingInvoiceListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BillingInvoice'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    PaymentMethod:
+      type: object
+      required: [id, organizationId, type, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        type:
+          $ref: '#/components/schemas/PaymentMethodType'
+        cardBrand:
+          type: string
+          nullable: true
+        cardLast4:
+          type: string
+          nullable: true
+        cardExpMonth:
+          type: integer
+          nullable: true
+        cardExpYear:
+          type: integer
+          nullable: true
+        bankName:
+          type: string
+          nullable: true
+        bankLast4:
+          type: string
+          nullable: true
+        isDefault:
+          type: boolean
+        billingDetails:
+          type: object
+          additionalProperties: true
+        status:
+          $ref: '#/components/schemas/PaymentMethodStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PaymentMethodAttach:
+      type: object
+      required: [stripePaymentMethodId]
+      properties:
+        stripePaymentMethodId:
+          type: string
+        setAsDefault:
+          type: boolean
+          default: false
+    PaymentMethodListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentMethod'
+        pagination:
+          $ref: '#/components/schemas/Pagination'

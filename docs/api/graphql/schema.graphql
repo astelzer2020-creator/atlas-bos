@@ -1,0 +1,2032 @@
+# Atlas BOS GraphQL Schema — Phase 5
+# Endpoint: https://api.atlas.example.com/graphql
+# Version: 2026-06-30
+# Specification: GraphQL June 2024 (SDL)
+
+"""
+Atlas BOS unified GraphQL API for composite reads, dashboards, and mobile clients.
+REST remains the source of truth for mutations invoked by integrations and AI agents;
+GraphQL mutations mirror REST capabilities for SPA/mobile convenience.
+"""
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SCALARS & COMMON INTERFACES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+scalar DateTime
+scalar JSON
+scalar BigInt
+scalar URL
+scalar EmailAddress
+scalar PhoneNumber
+scalar CurrencyCode
+scalar ULID
+
+interface Node {
+  id: ID!
+}
+
+interface Timestampable {
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+interface TenantScoped implements Node & Timestampable {
+  id: ID!
+  organizationId: ID!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+interface Actor {
+  id: ID!
+  displayName: String!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PAGINATION (Relay Connection Pattern)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type OrganizationConnection {
+  edges: [OrganizationEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type OrganizationEdge {
+  cursor: String!
+  node: Organization!
+}
+
+type ContactConnection {
+  edges: [ContactEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type ContactEdge {
+  cursor: String!
+  node: Contact!
+}
+
+type AccountConnection {
+  edges: [AccountEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type AccountEdge {
+  cursor: String!
+  node: Account!
+}
+
+type LeadConnection {
+  edges: [LeadEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type LeadEdge {
+  cursor: String!
+  node: Lead!
+}
+
+type DealConnection {
+  edges: [DealEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type DealEdge {
+  cursor: String!
+  node: Deal!
+}
+
+type ProjectConnection {
+  edges: [ProjectEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type ProjectEdge {
+  cursor: String!
+  node: Project!
+}
+
+type TaskConnection {
+  edges: [TaskEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type TaskEdge {
+  cursor: String!
+  node: Task!
+}
+
+type InvoiceConnection {
+  edges: [InvoiceEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type InvoiceEdge {
+  cursor: String!
+  node: Invoice!
+}
+
+type EmployeeConnection {
+  edges: [EmployeeEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type EmployeeEdge {
+  cursor: String!
+  node: Employee!
+}
+
+type ProductConnection {
+  edges: [ProductEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type ProductEdge {
+  cursor: String!
+  node: Product!
+}
+
+type SalesOrderConnection {
+  edges: [SalesOrderEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type SalesOrderEdge {
+  cursor: String!
+  node: SalesOrder!
+}
+
+type CampaignConnection {
+  edges: [CampaignEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type CampaignEdge {
+  cursor: String!
+  node: Campaign!
+}
+
+type WorkflowConnection {
+  edges: [WorkflowEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type WorkflowEdge {
+  cursor: String!
+  node: Workflow!
+}
+
+type NotificationConnection {
+  edges: [NotificationEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+  unreadCount: Int!
+}
+
+type NotificationEdge {
+  cursor: String!
+  node: Notification!
+}
+
+type DocumentConnection {
+  edges: [DocumentEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type DocumentEdge {
+  cursor: String!
+  node: Document!
+}
+
+type SupportTicketConnection {
+  edges: [SupportTicketEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type SupportTicketEdge {
+  cursor: String!
+  node: SupportTicket!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# VALUE OBJECTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+type Money {
+  amountCents: BigInt!
+  currencyCode: CurrencyCode!
+  formatted: String!
+}
+
+type Address {
+  line1: String
+  line2: String
+  city: String
+  state: String
+  postalCode: String
+  countryCode: String
+  formatted: String
+}
+
+type AuditInfo {
+  createdBy: User
+  updatedBy: User
+  deletedAt: DateTime
+}
+
+type ErrorDetail {
+  field: String
+  code: String!
+  message: String!
+}
+
+type MutationError {
+  code: String!
+  message: String!
+  details: [ErrorDetail!]
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PLATFORM & IDENTITY
+# ═══════════════════════════════════════════════════════════════════════════════
+
+enum OrganizationStatus {
+  PROVISIONING
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum IsolationTier {
+  SHARED_RLS
+  DEDICATED_SCHEMA
+  DEDICATED_CLUSTER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+  REMOVED
+}
+
+enum PrincipalType {
+  USER
+  SERVICE_ACCOUNT
+  API_KEY
+  AGENT
+  OAUTH_APP
+}
+
+type Workspace implements Node & Timestampable {
+  id: ID!
+  slug: String!
+  name: String!
+  displayName: String
+  owner: User!
+  plan: Plan
+  settings: JSON!
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  organizations(first: Int, after: String): OrganizationConnection!
+}
+
+type Organization implements Node & Timestampable {
+  id: ID!
+  workspaceId: ID!
+  slug: String!
+  name: String!
+  displayName: String
+  legalName: String
+  status: OrganizationStatus!
+  isolationTier: IsolationTier!
+  timezone: String!
+  locale: String!
+  currencyCode: CurrencyCode!
+  dataRegion: String!
+  settings: JSON!
+  metadata: JSON!
+  provisionedAt: DateTime
+  suspendedAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+  teams(first: Int, after: String): TeamConnection!
+  members(first: Int, after: String): OrganizationMemberConnection!
+}
+
+type Team implements Node & Timestampable & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  parentTeamId: ID
+  slug: String!
+  name: String!
+  description: String
+  isDefault: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+  members(first: Int, after: String): TeamMemberConnection!
+}
+
+type TeamConnection {
+  edges: [TeamEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type TeamEdge {
+  cursor: String!
+  node: Team!
+}
+
+type User implements Node & Actor {
+  id: ID!
+  email: EmailAddress!
+  displayName: String!
+  firstName: String
+  lastName: String
+  avatarUrl: URL
+  locale: String!
+  timezone: String!
+  isActive: Boolean!
+  lastLoginAt: DateTime
+  mfaEnabled: Boolean!
+}
+
+type OrganizationMember implements Node {
+  id: ID!
+  organizationId: ID!
+  user: User!
+  status: MembershipStatus!
+  title: String
+  department: String
+  isOwner: Boolean!
+  isBillingAdmin: Boolean!
+  joinedAt: DateTime!
+}
+
+type OrganizationMemberConnection {
+  edges: [OrganizationMemberEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type OrganizationMemberEdge {
+  cursor: String!
+  node: OrganizationMember!
+}
+
+type TeamMember implements Node {
+  id: ID!
+  teamId: ID!
+  user: User!
+  role: String
+  joinedAt: DateTime!
+}
+
+type TeamMemberConnection {
+  edges: [TeamMemberEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type TeamMemberEdge {
+  cursor: String!
+  node: TeamMember!
+}
+
+type Role implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  description: String
+  isSystem: Boolean!
+  permissions: [Permission!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type Permission {
+  resource: String!
+  action: String!
+  scope: String
+}
+
+type ApiKey implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  prefix: String!
+  scopes: [String!]!
+  expiresAt: DateTime
+  lastUsedAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type Plan implements Node {
+  id: ID!
+  code: String!
+  name: String!
+  tier: String!
+  features: JSON!
+  isActive: Boolean!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CRM
+# ═══════════════════════════════════════════════════════════════════════════════
+
+enum AccountType {
+  PROSPECT
+  CUSTOMER
+  PARTNER
+  VENDOR
+  COMPETITOR
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  DISQUALIFIED
+}
+
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+  ABANDONED
+}
+
+enum DealStage {
+  QUALIFICATION
+  NEEDS_ANALYSIS
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+type Account implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  legalName: String
+  accountType: AccountType!
+  industry: String
+  website: URL
+  phone: PhoneNumber
+  email: EmailAddress
+  billingAddress: Address
+  shippingAddress: Address
+  annualRevenue: Float
+  employeeCount: Int
+  owner: User
+  status: String!
+  contacts(first: Int, after: String): ContactConnection!
+  deals(first: Int, after: String): DealConnection!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type Contact implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  account: Account
+  salutation: String
+  firstName: String
+  lastName: String
+  displayName: String!
+  email: EmailAddress
+  phone: PhoneNumber
+  mobile: PhoneNumber
+  title: String
+  department: String
+  owner: User
+  status: String!
+  tags: [String!]!
+  metadata: JSON!
+  activities(first: Int, after: String): ActivityConnection!
+  deals(first: Int, after: String): DealConnection!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type Lead implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  firstName: String
+  lastName: String
+  displayName: String!
+  email: EmailAddress
+  phone: PhoneNumber
+  company: String
+  source: String!
+  status: LeadStatus!
+  rating: String
+  score: Int
+  owner: User
+  convertedContact: Contact
+  convertedAccount: Account
+  convertedDeal: Deal
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type Deal implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  account: Account
+  primaryContact: Contact
+  owner: User
+  pipeline: Pipeline
+  stage: DealStage!
+  status: DealStatus!
+  amount: Money!
+  probability: Int!
+  expectedCloseDate: DateTime
+  actualCloseDate: DateTime
+  lostReason: String
+  lineItems: [DealLineItem!]!
+  activities(first: Int, after: String): ActivityConnection!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type DealLineItem {
+  id: ID!
+  product: Product
+  description: String!
+  quantity: Float!
+  unitPrice: Money!
+  total: Money!
+}
+
+type Pipeline implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  isDefault: Boolean!
+  stages: [PipelineStage!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type PipelineStage {
+  id: ID!
+  name: String!
+  order: Int!
+  probability: Int!
+  dealStage: DealStage!
+}
+
+type Activity implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  type: String!
+  subject: String!
+  description: String
+  dueAt: DateTime
+  completedAt: DateTime
+  owner: User
+  contact: Contact
+  deal: Deal
+  account: Account
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type ActivityConnection {
+  edges: [ActivityEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type ActivityEdge {
+  cursor: String!
+  node: Activity!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ERP / COMMERCIAL
+# ═══════════════════════════════════════════════════════════════════════════════
+
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  INVOICED
+  CANCELLED
+}
+
+enum ProductType {
+  PHYSICAL
+  DIGITAL
+  SERVICE
+  BUNDLE
+}
+
+type Product implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  sku: String!
+  name: String!
+  description: String
+  productType: ProductType!
+  unitPrice: Money!
+  costPrice: Money
+  isActive: Boolean!
+  inventoryTracked: Boolean!
+  stockLevel: StockLevel
+  category: ProductCategory
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type ProductCategory implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  parentId: ID
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type StockLevel {
+  onHand: Float!
+  reserved: Float!
+  available: Float!
+  reorderPoint: Float
+  warehouse: Warehouse
+}
+
+type Warehouse implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  code: String!
+  name: String!
+  address: Address
+  isDefault: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type SalesOrder implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  orderNumber: String!
+  account: Account
+  contact: Contact
+  deal: Deal
+  status: OrderStatus!
+  orderDate: DateTime!
+  shipDate: DateTime
+  shippingAddress: Address
+  billingAddress: Address
+  subtotal: Money!
+  taxTotal: Money!
+  shippingTotal: Money!
+  grandTotal: Money!
+  lineItems: [SalesOrderLineItem!]!
+  invoices: [Invoice!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type SalesOrderLineItem {
+  id: ID!
+  product: Product!
+  description: String!
+  quantity: Float!
+  unitPrice: Money!
+  lineTotal: Money!
+  fulfilledQuantity: Float!
+}
+
+type PurchaseOrder implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  poNumber: String!
+  vendor: Account
+  status: OrderStatus!
+  orderDate: DateTime!
+  expectedDeliveryDate: DateTime
+  grandTotal: Money!
+  lineItems: [PurchaseOrderLineItem!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type PurchaseOrderLineItem {
+  id: ID!
+  product: Product!
+  quantity: Float!
+  unitPrice: Money!
+  lineTotal: Money!
+  receivedQuantity: Float!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FINANCE / LEDGER
+# ═══════════════════════════════════════════════════════════════════════════════
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  VIEWED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  VOIDED
+  WRITTEN_OFF
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+type Invoice implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  invoiceNumber: String!
+  account: Account
+  contact: Contact
+  salesOrder: SalesOrder
+  status: InvoiceStatus!
+  issueDate: DateTime!
+  dueDate: DateTime!
+  subtotal: Money!
+  taxTotal: Money!
+  discountTotal: Money!
+  grandTotal: Money!
+  amountPaid: Money!
+  amountDue: Money!
+  lineItems: [InvoiceLineItem!]!
+  payments: [Payment!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type InvoiceLineItem {
+  id: ID!
+  description: String!
+  quantity: Float!
+  unitPrice: Money!
+  taxRate: Float
+  lineTotal: Money!
+}
+
+type Payment implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  paymentNumber: String!
+  invoice: Invoice
+  account: Account
+  amount: Money!
+  status: PaymentStatus!
+  paymentMethod: String!
+  paidAt: DateTime
+  reference: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type Expense implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  description: String!
+  amount: Money!
+  category: String!
+  employee: Employee
+  expenseDate: DateTime!
+  status: String!
+  receiptUrl: URL
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type JournalEntry implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  entryNumber: String!
+  description: String!
+  entryDate: DateTime!
+  status: String!
+  lines: [JournalEntryLine!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type JournalEntryLine {
+  id: ID!
+  accountCode: String!
+  accountName: String!
+  debit: Money
+  credit: Money
+  description: String
+}
+
+type BankAccount implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  institution: String
+  accountNumberMasked: String!
+  currencyCode: CurrencyCode!
+  balance: Money!
+  isDefault: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HR / WORKFORCE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+enum EmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+  PROBATION
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACTOR
+  INTERN
+}
+
+type Employee implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  user: User
+  employeeNumber: String!
+  firstName: String!
+  lastName: String!
+  displayName: String!
+  email: EmailAddress!
+  phone: PhoneNumber
+  department: Department
+  manager: Employee
+  jobTitle: String!
+  employmentStatus: EmploymentStatus!
+  employmentType: EmploymentType!
+  hireDate: DateTime!
+  terminationDate: DateTime
+  compensation: Compensation
+  timeOffBalance: TimeOffBalance
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type Department implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  code: String
+  parentId: ID
+  manager: Employee
+  headcount: Int!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type Compensation {
+  baseSalary: Money!
+  payFrequency: String!
+  currencyCode: CurrencyCode!
+  effectiveDate: DateTime!
+}
+
+type TimeOffBalance {
+  vacationDays: Float!
+  sickDays: Float!
+  personalDays: Float!
+}
+
+type TimeOffRequest implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  employee: Employee!
+  type: String!
+  startDate: DateTime!
+  endDate: DateTime!
+  days: Float!
+  status: String!
+  approver: Employee
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type PayrollRun implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  periodStart: DateTime!
+  periodEnd: DateTime!
+  payDate: DateTime!
+  status: String!
+  totalGross: Money!
+  totalNet: Money!
+  employeeCount: Int!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PROJECTS / DELIVERY
+# ═══════════════════════════════════════════════════════════════════════════════
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  BLOCKED
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+type Project implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  code: String
+  description: String
+  status: ProjectStatus!
+  owner: User
+  account: Account
+  deal: Deal
+  startDate: DateTime
+  dueDate: DateTime
+  completedAt: DateTime
+  budget: Money
+  progress: Float!
+  tasks(first: Int, after: String, filter: TaskFilter): TaskConnection!
+  milestones: [Milestone!]!
+  members: [ProjectMember!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type ProjectMember {
+  user: User!
+  role: String!
+  joinedAt: DateTime!
+}
+
+type Milestone implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  project: Project!
+  name: String!
+  dueDate: DateTime!
+  completedAt: DateTime
+  status: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type Task implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  project: Project
+  parentTask: Task
+  title: String!
+  description: String
+  status: TaskStatus!
+  priority: TaskPriority!
+  assignee: User
+  reporter: User
+  dueDate: DateTime
+  completedAt: DateTime
+  estimatedHours: Float
+  actualHours: Float
+  tags: [String!]!
+  subtasks(first: Int, after: String): TaskConnection!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type Timesheet implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  employee: Employee!
+  weekStart: DateTime!
+  status: String!
+  totalHours: Float!
+  entries: [TimesheetEntry!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type TimesheetEntry {
+  id: ID!
+  task: Task
+  project: Project
+  date: DateTime!
+  hours: Float!
+  description: String
+  billable: Boolean!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MARKETING / CAMPAIGN
+# ═══════════════════════════════════════════════════════════════════════════════
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum CampaignType {
+  EMAIL
+  SMS
+  SOCIAL
+  ADS
+  WEBINAR
+  MULTI_CHANNEL
+}
+
+type Campaign implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  campaignType: CampaignType!
+  status: CampaignStatus!
+  startDate: DateTime
+  endDate: DateTime
+  budget: Money
+  owner: User
+  audienceSize: Int!
+  metrics: CampaignMetrics!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type CampaignMetrics {
+  sent: Int!
+  delivered: Int!
+  opened: Int!
+  clicked: Int!
+  converted: Int!
+  unsubscribed: Int!
+  bounceRate: Float!
+  openRate: Float!
+  clickRate: Float!
+}
+
+type EmailTemplate implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  subject: String!
+  htmlBody: String!
+  textBody: String
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type Segment implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  description: String
+  criteria: JSON!
+  memberCount: Int!
+  lastRefreshedAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AUTOMATION / ORCHESTRATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum WorkflowRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+type Workflow implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  description: String
+  status: WorkflowStatus!
+  trigger: WorkflowTrigger!
+  steps: [WorkflowStep!]!
+  version: Int!
+  lastRunAt: DateTime
+  runCount: Int!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type WorkflowTrigger {
+  type: String!
+  config: JSON!
+}
+
+type WorkflowStep {
+  id: ID!
+  name: String!
+  type: String!
+  config: JSON!
+  order: Int!
+}
+
+type WorkflowRun implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  workflow: Workflow!
+  status: WorkflowRunStatus!
+  startedAt: DateTime!
+  completedAt: DateTime
+  triggeredBy: String!
+  context: JSON!
+  steps: [WorkflowRunStep!]!
+  error: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type WorkflowRunStep {
+  stepId: ID!
+  name: String!
+  status: WorkflowRunStatus!
+  startedAt: DateTime
+  completedAt: DateTime
+  output: JSON
+  error: String
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AI / INTELLIGENCE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+type AiAgent implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  description: String
+  model: String!
+  systemPrompt: String!
+  tools: [String!]!
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type AiConversation implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  agent: AiAgent!
+  user: User!
+  title: String
+  messageCount: Int!
+  lastMessageAt: DateTime
+  messages(first: Int, after: String): AiMessageConnection!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type AiMessage implements Node {
+  id: ID!
+  role: String!
+  content: String!
+  toolCalls: JSON
+  tokensUsed: Int
+  createdAt: DateTime!
+}
+
+type AiMessageConnection {
+  edges: [AiMessageEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type AiMessageEdge {
+  cursor: String!
+  node: AiMessage!
+}
+
+type KnowledgeArticle implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  title: String!
+  slug: String!
+  content: String!
+  category: String
+  tags: [String!]!
+  isPublished: Boolean!
+  author: User
+  viewCount: Int!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DOCUMENTS / CONTENT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+type Document implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  mimeType: String!
+  sizeBytes: BigInt!
+  folder: DocumentFolder
+  uploadedBy: User
+  downloadUrl: URL
+  previewUrl: URL
+  tags: [String!]!
+  metadata: JSON!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type DocumentFolder implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  parentId: ID
+  path: String!
+  documentCount: Int!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SUPPORT / SERVICE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+enum TicketStatus {
+  NEW
+  OPEN
+  PENDING
+  ON_HOLD
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+type SupportTicket implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  ticketNumber: String!
+  subject: String!
+  description: String!
+  status: TicketStatus!
+  priority: TicketPriority!
+  contact: Contact
+  account: Account
+  assignee: User
+  slaBreached: Boolean!
+  firstResponseAt: DateTime
+  resolvedAt: DateTime
+  comments(first: Int, after: String): TicketCommentConnection!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type TicketComment implements Node {
+  id: ID!
+  body: String!
+  author: User!
+  isInternal: Boolean!
+  createdAt: DateTime!
+}
+
+type TicketCommentConnection {
+  edges: [TicketCommentEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type TicketCommentEdge {
+  cursor: String!
+  node: TicketComment!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# NOTIFICATIONS / BILLING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+type Notification implements Node {
+  id: ID!
+  type: String!
+  title: String!
+  body: String!
+  isRead: Boolean!
+  actionUrl: URL
+  metadata: JSON!
+  createdAt: DateTime!
+}
+
+type SubscriptionPlan {
+  tier: String!
+  features: [String!]!
+  limits: JSON!
+}
+
+type BillingSubscription implements Node {
+  id: ID!
+  workspaceId: ID!
+  plan: Plan!
+  status: String!
+  currentPeriodStart: DateTime!
+  currentPeriodEnd: DateTime!
+  cancelAtPeriodEnd: Boolean!
+  seatCount: Int!
+  mrr: Money!
+}
+
+type UsageRecord {
+  metric: String!
+  used: Int!
+  limit: Int!
+  periodStart: DateTime!
+  periodEnd: DateTime!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ANALYTICS / DASHBOARD
+# ═══════════════════════════════════════════════════════════════════════════════
+
+type DashboardMetrics {
+  revenue: Money!
+  revenueChange: Float!
+  activeDeals: Int!
+  dealsWon: Int!
+  openTickets: Int!
+  overdueInvoices: Int!
+  activeProjects: Int!
+  employeeCount: Int!
+}
+
+type ReportDefinition implements Node & TenantScoped {
+  id: ID!
+  organizationId: ID!
+  name: String!
+  reportType: String!
+  config: JSON!
+  schedule: String
+  lastRunAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type SearchResult {
+  entityType: String!
+  entityId: ID!
+  title: String!
+  subtitle: String
+  url: URL
+  score: Float!
+  highlights: [String!]
+}
+
+type GlobalSearchPayload {
+  query: String!
+  results: [SearchResult!]!
+  totalCount: Int!
+  facets: JSON!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# INPUT TYPES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+input PaginationInput {
+  first: Int = 25
+  after: String
+  last: Int
+  before: String
+}
+
+input ContactFilter {
+  search: String
+  accountId: ID
+  ownerId: ID
+  status: String
+  tags: [String!]
+}
+
+input DealFilter {
+  search: String
+  accountId: ID
+  ownerId: ID
+  pipelineId: ID
+  stage: DealStage
+  status: DealStatus
+  minAmount: BigInt
+  maxAmount: BigInt
+}
+
+input TaskFilter {
+  projectId: ID
+  assigneeId: ID
+  status: TaskStatus
+  priority: TaskPriority
+  dueBefore: DateTime
+  dueAfter: DateTime
+}
+
+input InvoiceFilter {
+  accountId: ID
+  status: InvoiceStatus
+  dueBefore: DateTime
+  dueAfter: DateTime
+}
+
+input CreateContactInput {
+  accountId: ID
+  firstName: String
+  lastName: String
+  displayName: String!
+  email: EmailAddress
+  phone: PhoneNumber
+  title: String
+  ownerId: ID
+  tags: [String!]
+  metadata: JSON
+}
+
+input UpdateContactInput {
+  id: ID!
+  version: Int!
+  accountId: ID
+  firstName: String
+  lastName: String
+  displayName: String
+  email: EmailAddress
+  phone: PhoneNumber
+  title: String
+  ownerId: ID
+  status: String
+  tags: [String!]
+  metadata: JSON
+}
+
+input CreateAccountInput {
+  name: String!
+  accountType: AccountType
+  industry: String
+  website: URL
+  email: EmailAddress
+  phone: PhoneNumber
+  ownerId: ID
+  billingAddress: AddressInput
+}
+
+input UpdateAccountInput {
+  id: ID!
+  version: Int!
+  name: String
+  accountType: AccountType
+  industry: String
+  website: URL
+  ownerId: ID
+}
+
+input AddressInput {
+  line1: String
+  line2: String
+  city: String
+  state: String
+  postalCode: String
+  countryCode: String
+}
+
+input CreateLeadInput {
+  firstName: String
+  lastName: String
+  displayName: String!
+  email: EmailAddress
+  phone: PhoneNumber
+  company: String
+  source: String!
+  ownerId: ID
+}
+
+input ConvertLeadInput {
+  leadId: ID!
+  version: Int!
+  createAccount: Boolean!
+  accountName: String
+  createDeal: Boolean
+  dealName: String
+  dealAmountCents: BigInt
+}
+
+input CreateDealInput {
+  name: String!
+  accountId: ID
+  primaryContactId: ID
+  pipelineId: ID!
+  stage: DealStage!
+  amountCents: BigInt!
+  currencyCode: CurrencyCode!
+  probability: Int
+  expectedCloseDate: DateTime
+  ownerId: ID
+  lineItems: [DealLineItemInput!]
+}
+
+input DealLineItemInput {
+  productId: ID
+  description: String!
+  quantity: Float!
+  unitPriceCents: BigInt!
+  currencyCode: CurrencyCode!
+}
+
+input UpdateDealInput {
+  id: ID!
+  version: Int!
+  name: String
+  stage: DealStage
+  amountCents: BigInt
+  probability: Int
+  expectedCloseDate: DateTime
+  ownerId: ID
+}
+
+input CreateProjectInput {
+  name: String!
+  code: String
+  description: String
+  accountId: ID
+  dealId: ID
+  ownerId: ID
+  startDate: DateTime
+  dueDate: DateTime
+  budgetCents: BigInt
+  currencyCode: CurrencyCode
+}
+
+input UpdateProjectInput {
+  id: ID!
+  version: Int!
+  name: String
+  status: ProjectStatus
+  dueDate: DateTime
+  ownerId: ID
+}
+
+input CreateTaskInput {
+  projectId: ID
+  parentTaskId: ID
+  title: String!
+  description: String
+  status: TaskStatus
+  priority: TaskPriority
+  assigneeId: ID
+  dueDate: DateTime
+  estimatedHours: Float
+  tags: [String!]
+}
+
+input UpdateTaskInput {
+  id: ID!
+  version: Int!
+  title: String
+  description: String
+  status: TaskStatus
+  priority: TaskPriority
+  assigneeId: ID
+  dueDate: DateTime
+}
+
+input CreateInvoiceInput {
+  accountId: ID
+  contactId: ID
+  salesOrderId: ID
+  issueDate: DateTime!
+  dueDate: DateTime!
+  currencyCode: CurrencyCode!
+  lineItems: [InvoiceLineItemInput!]!
+}
+
+input InvoiceLineItemInput {
+  description: String!
+  quantity: Float!
+  unitPriceCents: BigInt!
+  taxRate: Float
+}
+
+input RecordPaymentInput {
+  invoiceId: ID!
+  amountCents: BigInt!
+  currencyCode: CurrencyCode!
+  paymentMethod: String!
+  paidAt: DateTime
+  reference: String
+}
+
+input CreateEmployeeInput {
+  userId: ID
+  firstName: String!
+  lastName: String!
+  email: EmailAddress!
+  departmentId: ID
+  managerId: ID
+  jobTitle: String!
+  employmentType: EmploymentType!
+  hireDate: DateTime!
+}
+
+input CreateSalesOrderInput {
+  accountId: ID
+  contactId: ID
+  dealId: ID
+  lineItems: [SalesOrderLineItemInput!]!
+  shippingAddress: AddressInput
+  currencyCode: CurrencyCode!
+}
+
+input SalesOrderLineItemInput {
+  productId: ID!
+  quantity: Float!
+  unitPriceCents: BigInt
+}
+
+input CreateWorkflowInput {
+  name: String!
+  description: String
+  trigger: WorkflowTriggerInput!
+  steps: [WorkflowStepInput!]!
+}
+
+input WorkflowTriggerInput {
+  type: String!
+  config: JSON!
+}
+
+input WorkflowStepInput {
+  name: String!
+  type: String!
+  config: JSON!
+  order: Int!
+}
+
+input SendCampaignInput {
+  campaignId: ID!
+  segmentId: ID
+  scheduledAt: DateTime
+}
+
+input GlobalSearchInput {
+  query: String!
+  entityTypes: [String!]
+  limit: Int = 25
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PAYLOAD / RESULT TYPES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+type CreateContactPayload {
+  contact: Contact
+  errors: [MutationError!]
+}
+
+type UpdateContactPayload {
+  contact: Contact
+  errors: [MutationError!]
+}
+
+type CreateDealPayload {
+  deal: Deal
+  errors: [MutationError!]
+}
+
+type DeleteEntityPayload {
+  success: Boolean!
+  deletedId: ID
+  errors: [MutationError!]
+}
+
+type ConvertLeadPayload {
+  lead: Lead
+  contact: Contact
+  account: Account
+  deal: Deal
+  errors: [MutationError!]
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# QUERY ROOT (63 queries)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+type Query {
+  # Platform
+  viewer: User!
+  workspace: Workspace!
+  organization: Organization!
+  organizationById(id: ID!): Organization
+  teams(first: Int, after: String): TeamConnection!
+  team(id: ID!): Team
+  users(first: Int, after: String, search: String): UserConnection!
+  roles: [Role!]!
+  apiKeys: [ApiKey!]!
+
+  # CRM
+  contact(id: ID!): Contact
+  contacts(first: Int, after: String, filter: ContactFilter): ContactConnection!
+  account(id: ID!): Account
+  accounts(first: Int, after: String, search: String): AccountConnection!
+  lead(id: ID!): Lead
+  leads(first: Int, after: String, status: LeadStatus): LeadConnection!
+  deal(id: ID!): Deal
+  deals(first: Int, after: String, filter: DealFilter): DealConnection!
+  pipeline(id: ID!): Pipeline
+  pipelines: [Pipeline!]!
+  activity(id: ID!): Activity
+  activities(first: Int, after: String, contactId: ID, dealId: ID): ActivityConnection!
+
+  # ERP
+  product(id: ID!): Product
+  products(first: Int, after: String, search: String): ProductConnection!
+  salesOrder(id: ID!): SalesOrder
+  salesOrders(first: Int, after: String, status: OrderStatus): SalesOrderConnection!
+  warehouse(id: ID!): Warehouse
+  warehouses: [Warehouse!]!
+
+  # Finance
+  invoice(id: ID!): Invoice
+  invoices(first: Int, after: String, filter: InvoiceFilter): InvoiceConnection!
+  payment(id: ID!): Payment
+  bankAccounts: [BankAccount!]!
+  journalEntry(id: ID!): JournalEntry
+
+  # HR
+  employee(id: ID!): Employee
+  employees(first: Int, after: String, departmentId: ID): EmployeeConnection!
+  department(id: ID!): Department
+  departments: [Department!]!
+  timeOffRequest(id: ID!): TimeOffRequest
+
+  # Projects
+  project(id: ID!): Project
+  projects(first: Int, after: String, status: ProjectStatus): ProjectConnection!
+  task(id: ID!): Task
+  tasks(first: Int, after: String, filter: TaskFilter): TaskConnection!
+  timesheet(id: ID!): Timesheet
+
+  # Marketing
+  campaign(id: ID!): Campaign
+  campaigns(first: Int, after: String, status: CampaignStatus): CampaignConnection!
+  segment(id: ID!): Segment
+  segments: [Segment!]!
+
+  # Automation & AI
+  workflow(id: ID!): Workflow
+  workflows(first: Int, after: String): WorkflowConnection!
+  workflowRun(id: ID!): WorkflowRun
+  aiAgent(id: ID!): AiAgent
+  aiAgents: [AiAgent!]!
+  aiConversation(id: ID!): AiConversation
+  knowledgeArticle(slug: String!): KnowledgeArticle
+
+  # Documents & Support
+  document(id: ID!): Document
+  documents(first: Int, after: String, folderId: ID): DocumentConnection!
+  supportTicket(id: ID!): SupportTicket
+  supportTickets(first: Int, after: String, status: TicketStatus): SupportTicketConnection!
+
+  # Cross-cutting
+  notifications(first: Int, after: String, unreadOnly: Boolean): NotificationConnection!
+  billingSubscription: BillingSubscription
+  usageRecords: [UsageRecord!]!
+  dashboardMetrics(period: String): DashboardMetrics!
+  globalSearch(input: GlobalSearchInput!): GlobalSearchPayload!
+  node(id: ID!): Node
+}
+
+type UserConnection {
+  edges: [UserEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type UserEdge {
+  cursor: String!
+  node: User!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MUTATION ROOT (38 mutations)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+type Mutation {
+  # CRM
+  createContact(input: CreateContactInput!): CreateContactPayload!
+  updateContact(input: UpdateContactInput!): UpdateContactPayload!
+  deleteContact(id: ID!, version: Int!): DeleteEntityPayload!
+  createAccount(input: CreateAccountInput!): Account!
+  updateAccount(input: UpdateAccountInput!): Account!
+  createLead(input: CreateLeadInput!): Lead!
+  convertLead(input: ConvertLeadInput!): ConvertLeadPayload!
+  createDeal(input: CreateDealInput!): CreateDealPayload!
+  updateDeal(input: UpdateDealInput!): Deal!
+  winDeal(id: ID!, version: Int!): Deal!
+  loseDeal(id: ID!, version: Int!, reason: String!): Deal!
+  createActivity(subject: String!, type: String!, contactId: ID, dealId: ID, dueAt: DateTime): Activity!
+
+  # ERP
+  createProduct(sku: String!, name: String!, unitPriceCents: BigInt!, currencyCode: CurrencyCode!): Product!
+  createSalesOrder(input: CreateSalesOrderInput!): SalesOrder!
+  confirmSalesOrder(id: ID!, version: Int!): SalesOrder!
+  cancelSalesOrder(id: ID!, version: Int!, reason: String!): SalesOrder!
+
+  # Finance
+  createInvoice(input: CreateInvoiceInput!): Invoice!
+  sendInvoice(id: ID!, version: Int!): Invoice!
+  voidInvoice(id: ID!, version: Int!, reason: String!): Invoice!
+  recordPayment(input: RecordPaymentInput!): Payment!
+
+  # HR
+  createEmployee(input: CreateEmployeeInput!): Employee!
+  approveTimeOffRequest(id: ID!, version: Int!): TimeOffRequest!
+  rejectTimeOffRequest(id: ID!, version: Int!, reason: String!): TimeOffRequest!
+
+  # Projects
+  createProject(input: CreateProjectInput!): Project!
+  updateProject(input: UpdateProjectInput!): Project!
+  createTask(input: CreateTaskInput!): Task!
+  updateTask(input: UpdateTaskInput!): Task!
+  completeTask(id: ID!, version: Int!): Task!
+
+  # Marketing & Automation
+  createCampaign(name: String!, campaignType: CampaignType!): Campaign!
+  sendCampaign(input: SendCampaignInput!): Campaign!
+  createWorkflow(input: CreateWorkflowInput!): Workflow!
+  activateWorkflow(id: ID!, version: Int!): Workflow!
+  pauseWorkflow(id: ID!, version: Int!): Workflow!
+
+  # Support & Documents
+  createSupportTicket(subject: String!, description: String!, contactId: ID, priority: TicketPriority): SupportTicket!
+  resolveSupportTicket(id: ID!, version: Int!, resolution: String!): SupportTicket!
+  uploadDocument(name: String!, mimeType: String!, folderId: ID): Document!
+
+  # Notifications
+  markNotificationRead(id: ID!): Notification!
+  markAllNotificationsRead: Int!
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SUBSCRIPTION ROOT (12 subscriptions)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+type Subscription {
+  """Real-time deal pipeline updates for kanban boards."""
+  dealUpdated(organizationId: ID!, pipelineId: ID): Deal!
+
+  """New and updated contacts for live directory views."""
+  contactChanged(organizationId: ID!): Contact!
+
+  """Task board updates for project management views."""
+  taskUpdated(organizationId: ID!, projectId: ID): Task!
+
+  """Invoice status changes for AR dashboards."""
+  invoiceStatusChanged(organizationId: ID!): Invoice!
+
+  """Support ticket queue updates for agent consoles."""
+  ticketUpdated(organizationId: ID!, assigneeId: ID): SupportTicket!
+
+  """Workflow execution progress for automation monitors."""
+  workflowRunProgress(organizationId: ID!, workflowId: ID): WorkflowRun!
+
+  """Inbound notifications for the current user."""
+  notificationReceived(userId: ID!): Notification!
+
+  """AI agent streaming token responses."""
+  aiMessageStream(conversationId: ID!): AiMessage!
+
+  """Campaign send progress and metrics."""
+  campaignMetricsUpdated(organizationId: ID!, campaignId: ID!): Campaign!
+
+  """Sales order fulfillment status."""
+  salesOrderStatusChanged(organizationId: ID!, orderId: ID): SalesOrder!
+
+  """Organization-wide activity feed."""
+  activityFeed(organizationId: ID!): Activity!
+
+  """Global search index refresh signals."""
+  searchIndexUpdated(organizationId: ID!, entityType: String): SearchResult!
+}

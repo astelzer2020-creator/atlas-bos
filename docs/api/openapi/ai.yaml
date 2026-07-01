@@ -1,0 +1,1246 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS AI API
+  version: 1.0.0
+  description: |
+    REST API for AI Memory (`ai_memory`) and AI Agents (`ai_agents`) bounded contexts.
+    Resources: Conversations, AgentRuns, MemoryChunks, Approvals, AgentDefinitions.
+servers:
+  - url: https://api.atlas.example.com
+security:
+  - bearerAuth: []
+tags:
+  - name: Conversations
+  - name: AgentRuns
+  - name: MemoryChunks
+  - name: Approvals
+  - name: AgentDefinitions
+paths:
+  /v1/organizations/{organizationId}/conversations:
+    get:
+      operationId: listConversations
+      tags: [Conversations]
+      summary: List conversation sessions
+      x-atlas-latency-tier: standard
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: sessionType
+          in: query
+          schema:
+            $ref: '#/components/schemas/ConversationSessionType'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ConversationSessionStatus'
+        - name: userId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated conversation list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationListResponse'
+    post:
+      operationId: createConversation
+      tags: [Conversations]
+      summary: Create a conversation session
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationCreate'
+      responses:
+        '201':
+          description: Conversation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationSession'
+  /v1/organizations/{organizationId}/conversations/{conversationId}:
+    get:
+      operationId: getConversation
+      tags: [Conversations]
+      summary: Get conversation session with recent messages
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/conversationId'
+        - name: includeMessages
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Conversation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateConversation
+      tags: [Conversations]
+      summary: Update conversation metadata or archive
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/conversationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationUpdate'
+      responses:
+        '200':
+          description: Conversation updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationSession'
+  /v1/organizations/{organizationId}/conversations/{conversationId}/messages:
+    get:
+      operationId: listConversationMessages
+      tags: [Conversations]
+      summary: List messages in a conversation
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/conversationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Paginated message list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationMessageListResponse'
+    post:
+      operationId: sendConversationMessage
+      tags: [Conversations]
+      summary: Send a message in a conversation
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/conversationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationMessageCreate'
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationMessage'
+  /v1/organizations/{organizationId}/agent-runs:
+    get:
+      operationId: listAgentRuns
+      tags: [AgentRuns]
+      summary: List agent runs
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AgentRunStatus'
+        - name: agentDefinitionId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated agent run list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunListResponse'
+    post:
+      operationId: createAgentRun
+      tags: [AgentRuns]
+      summary: Start a new agent run
+      x-atlas-latency-tier: interactive
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentRunCreate'
+      responses:
+        '201':
+          description: Agent run started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRun'
+  /v1/organizations/{organizationId}/agent-runs/{agentRunId}:
+    get:
+      operationId: getAgentRun
+      tags: [AgentRuns]
+      summary: Get agent run details and steps
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/agentRunId'
+        - name: includeSteps
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Agent run details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/organizations/{organizationId}/agent-runs/{agentRunId}/cancel:
+    post:
+      operationId: cancelAgentRun
+      tags: [AgentRuns]
+      summary: Cancel a running agent run
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/agentRunId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Agent run cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRun'
+  /v1/organizations/{organizationId}/agent-definitions:
+    get:
+      operationId: listAgentDefinitions
+      tags: [AgentDefinitions]
+      summary: List agent definitions
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AgentDefinitionStatus'
+        - name: role
+          in: query
+          schema:
+            $ref: '#/components/schemas/AgentRole'
+      responses:
+        '200':
+          description: Paginated agent definition list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentDefinitionListResponse'
+    post:
+      operationId: createAgentDefinition
+      tags: [AgentDefinitions]
+      summary: Create an agent definition
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentDefinitionCreate'
+      responses:
+        '201':
+          description: Agent definition created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentDefinition'
+  /v1/organizations/{organizationId}/agent-definitions/{agentDefinitionId}:
+    get:
+      operationId: getAgentDefinition
+      tags: [AgentDefinitions]
+      summary: Get agent definition by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/agentDefinitionId'
+      responses:
+        '200':
+          description: Agent definition details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentDefinition'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateAgentDefinition
+      tags: [AgentDefinitions]
+      summary: Update an agent definition
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/agentDefinitionId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentDefinitionUpdate'
+      responses:
+        '200':
+          description: Agent definition updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentDefinition'
+  /v1/organizations/{organizationId}/agent-definitions/{agentDefinitionId}/publish:
+    post:
+      operationId: publishAgentDefinition
+      tags: [AgentDefinitions]
+      summary: Publish an agent definition
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/agentDefinitionId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: Agent definition published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentDefinition'
+  /v1/organizations/{organizationId}/memory-chunks:
+    get:
+      operationId: listMemoryChunks
+      tags: [MemoryChunks]
+      summary: List memory chunks by source
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: sourceType
+          in: query
+          schema:
+            $ref: '#/components/schemas/MemorySourceType'
+        - name: sourceId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated memory chunk list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryChunkListResponse'
+  /v1/organizations/{organizationId}/memory-chunks/search:
+    post:
+      operationId: searchMemoryChunks
+      tags: [MemoryChunks]
+      summary: Semantic search over memory chunks
+      x-atlas-latency-tier: interactive
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemoryChunkSearchRequest'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryChunkSearchResponse'
+  /v1/organizations/{organizationId}/memory-chunks/{memoryChunkId}:
+    get:
+      operationId: getMemoryChunk
+      tags: [MemoryChunks]
+      summary: Get memory chunk by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/memoryChunkId'
+      responses:
+        '200':
+          description: Memory chunk details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryChunk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteMemoryChunk
+      tags: [MemoryChunks]
+      summary: Soft-delete a memory chunk
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/memoryChunkId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '204':
+          description: Memory chunk deleted
+  /v1/organizations/{organizationId}/approvals:
+    get:
+      operationId: listApprovals
+      tags: [Approvals]
+      summary: List pending agent approvals
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AgentApprovalStatus'
+        - name: agentRunId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated approval list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalListResponse'
+  /v1/organizations/{organizationId}/approvals/{approvalId}:
+    get:
+      operationId: getApproval
+      tags: [Approvals]
+      summary: Get approval request details
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/approvalId'
+      responses:
+        '200':
+          description: Approval details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentApproval'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/organizations/{organizationId}/approvals/{approvalId}/approve:
+    post:
+      operationId: approveAgentAction
+      tags: [Approvals]
+      summary: Approve a pending agent action
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/approvalId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolutionNote:
+                  type: string
+      responses:
+        '200':
+          description: Approval granted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentApproval'
+  /v1/organizations/{organizationId}/approvals/{approvalId}/reject:
+    post:
+      operationId: rejectAgentAction
+      tags: [Approvals]
+      summary: Reject a pending agent action
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/approvalId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolutionNote]
+              properties:
+                resolutionNote:
+                  type: string
+      responses:
+        '200':
+          description: Approval rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentApproval'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    organizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    conversationId:
+      name: conversationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    agentRunId:
+      name: agentRunId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    agentDefinitionId:
+      name: agentDefinitionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    memoryChunkId:
+      name: memoryChunkId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    approvalId:
+      name: approvalId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ifMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+    Pagination:
+      type: object
+      required: [has_more, limit]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+    ConversationSessionType:
+      type: string
+      enum: [chat, agent, workflow, support]
+    ConversationSessionStatus:
+      type: string
+      enum: [active, summarized, archived, expired]
+    ConversationMessageRole:
+      type: string
+      enum: [user, assistant, system, tool]
+    ConversationContentType:
+      type: string
+      enum: [text, markdown, json, tool_result]
+    ConversationSession:
+      type: object
+      required: [id, organizationId, sessionType, status, expiresAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+          nullable: true
+        agentRunId:
+          type: string
+          format: uuid
+          nullable: true
+        sessionType:
+          $ref: '#/components/schemas/ConversationSessionType'
+        status:
+          $ref: '#/components/schemas/ConversationSessionStatus'
+        title:
+          type: string
+          nullable: true
+        contextSummary:
+          type: string
+          nullable: true
+        tokenEstimate:
+          type: integer
+        turnCount:
+          type: integer
+        metadata:
+          type: object
+          additionalProperties: true
+        expiresAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    ConversationCreate:
+      type: object
+      properties:
+        sessionType:
+          $ref: '#/components/schemas/ConversationSessionType'
+        title:
+          type: string
+        agentRunId:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+    ConversationUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/ConversationSessionStatus'
+        metadata:
+          type: object
+          additionalProperties: true
+    ConversationMessage:
+      type: object
+      required: [id, sessionId, sequenceNumber, role, content]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        sessionId:
+          type: string
+          format: uuid
+        sequenceNumber:
+          type: integer
+        role:
+          $ref: '#/components/schemas/ConversationMessageRole'
+        content:
+          type: string
+        contentType:
+          $ref: '#/components/schemas/ConversationContentType'
+        toolCalls:
+          type: object
+          nullable: true
+        toolCallId:
+          type: string
+          nullable: true
+        tokenCount:
+          type: integer
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+    ConversationMessageCreate:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          $ref: '#/components/schemas/ConversationMessageRole'
+        content:
+          type: string
+        contentType:
+          $ref: '#/components/schemas/ConversationContentType'
+        toolCalls:
+          type: object
+        metadata:
+          type: object
+          additionalProperties: true
+    ConversationDetail:
+      allOf:
+        - $ref: '#/components/schemas/ConversationSession'
+        - type: object
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: '#/components/schemas/ConversationMessage'
+    ConversationListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationSession'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    ConversationMessageListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationMessage'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    AgentRole:
+      type: string
+      enum: [analyst, executor, reviewer, planner, custom]
+    AgentDefinitionStatus:
+      type: string
+      enum: [draft, published, deprecated, archived]
+    AgentInvokerType:
+      type: string
+      enum: [user, workflow, automation, schedule, system]
+    AgentRunStatus:
+      type: string
+      enum: [init, planning, executing, review_pending, awaiting_human, completed, failed, terminated, cancelled]
+    OrchestrationPattern:
+      type: string
+      enum: [sequential, parallel, hierarchical]
+    AgentRunStepType:
+      type: string
+      enum: [think, act, observe, plan, review, finish]
+    AgentRunStepStatus:
+      type: string
+      enum: [pending, running, completed, failed, skipped]
+    AgentApprovalStatus:
+      type: string
+      enum: [pending, approved, rejected, expired, cancelled]
+    MemorySourceType:
+      type: string
+      enum: [document, kb_article, email, meeting, crm_note, chat, agent_run, user_explicit, settings]
+    AgentDefinition:
+      type: object
+      required: [id, name, slug, role, status, modelId, systemPrompt, definitionVersion]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        role:
+          $ref: '#/components/schemas/AgentRole'
+        definitionVersion:
+          type: integer
+        status:
+          $ref: '#/components/schemas/AgentDefinitionStatus'
+        modelId:
+          type: string
+        systemPrompt:
+          type: string
+        allowedTools:
+          type: array
+          items:
+            type: string
+        constraints:
+          type: object
+          additionalProperties: true
+        memoryConfig:
+          type: object
+          additionalProperties: true
+        riskPolicy:
+          type: object
+          additionalProperties: true
+        isDefault:
+          type: boolean
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    AgentDefinitionCreate:
+      type: object
+      required: [name, slug, role, systemPrompt]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        role:
+          $ref: '#/components/schemas/AgentRole'
+        modelId:
+          type: string
+        systemPrompt:
+          type: string
+        allowedTools:
+          type: array
+          items:
+            type: string
+        constraints:
+          type: object
+          additionalProperties: true
+        memoryConfig:
+          type: object
+          additionalProperties: true
+        riskPolicy:
+          type: object
+          additionalProperties: true
+    AgentDefinitionUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        systemPrompt:
+          type: string
+        allowedTools:
+          type: array
+          items:
+            type: string
+        constraints:
+          type: object
+          additionalProperties: true
+        memoryConfig:
+          type: object
+          additionalProperties: true
+        riskPolicy:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+    AgentDefinitionListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentDefinition'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    AgentRunStep:
+      type: object
+      required: [id, agentRunId, stepNumber, stepType, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        stepNumber:
+          type: integer
+        stepType:
+          $ref: '#/components/schemas/AgentRunStepType'
+        status:
+          $ref: '#/components/schemas/AgentRunStepStatus'
+        inputSummary:
+          type: string
+          nullable: true
+        outputSummary:
+          type: string
+          nullable: true
+        llmInputTokens:
+          type: integer
+        llmOutputTokens:
+          type: integer
+        costCents:
+          type: integer
+        durationMs:
+          type: integer
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+    AgentRun:
+      type: object
+      required: [id, organizationId, agentDefinitionId, goal, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        agentDefinitionId:
+          type: string
+          format: uuid
+        definitionVersion:
+          type: integer
+        invokerType:
+          $ref: '#/components/schemas/AgentInvokerType'
+        invokerId:
+          type: string
+          format: uuid
+          nullable: true
+        conversationSessionId:
+          type: string
+          format: uuid
+          nullable: true
+        goal:
+          type: string
+        status:
+          $ref: '#/components/schemas/AgentRunStatus'
+        statusReason:
+          type: string
+          nullable: true
+        orchestrationPattern:
+          $ref: '#/components/schemas/OrchestrationPattern'
+        iterationCount:
+          type: integer
+        maxIterations:
+          type: integer
+        budgetCents:
+          type: integer
+        costCents:
+          type: integer
+        llmInputTokens:
+          type: string
+          description: int64 as string
+        llmOutputTokens:
+          type: string
+          description: int64 as string
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        resultSummary:
+          type: string
+          nullable: true
+        resultPayload:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    AgentRunCreate:
+      type: object
+      required: [agentDefinitionId, goal]
+      properties:
+        agentDefinitionId:
+          type: string
+          format: uuid
+        goal:
+          type: string
+        conversationSessionId:
+          type: string
+          format: uuid
+        maxIterations:
+          type: integer
+        budgetCents:
+          type: integer
+        orchestrationPattern:
+          $ref: '#/components/schemas/OrchestrationPattern'
+        metadata:
+          type: object
+          additionalProperties: true
+    AgentRunDetail:
+      allOf:
+        - $ref: '#/components/schemas/AgentRun'
+        - type: object
+          properties:
+            steps:
+              type: array
+              items:
+                $ref: '#/components/schemas/AgentRunStep'
+    AgentRunListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentRun'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    MemoryChunk:
+      type: object
+      required: [id, organizationId, sourceType, sourceId, contentHash, textContent]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        sourceType:
+          $ref: '#/components/schemas/MemorySourceType'
+        sourceId:
+          type: string
+          format: uuid
+        sourceVersion:
+          type: integer
+        chunkIndex:
+          type: integer
+        contentHash:
+          type: string
+        textContent:
+          type: string
+        tokenCount:
+          type: integer
+          nullable: true
+        language:
+          type: string
+          nullable: true
+        containsPii:
+          type: boolean
+        importanceScore:
+          type: string
+          description: Decimal (5,4)
+        accessPolicy:
+          type: object
+          additionalProperties: true
+        entityRefs:
+          type: array
+          items: {}
+        metadata:
+          type: object
+          additionalProperties: true
+        lastAccessedAt:
+          type: string
+          format: date-time
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    MemoryChunkSearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+        sourceTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemorySourceType'
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 10
+        minScore:
+          type: number
+          minimum: 0
+          maximum: 1
+    MemoryChunkSearchResult:
+      type: object
+      required: [chunk, score]
+      properties:
+        chunk:
+          $ref: '#/components/schemas/MemoryChunk'
+        score:
+          type: number
+    MemoryChunkSearchResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemoryChunkSearchResult'
+    MemoryChunkListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemoryChunk'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    AgentApproval:
+      type: object
+      required: [id, organizationId, agentRunId, toolKey, status, reason, expiresAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        agentRunId:
+          type: string
+          format: uuid
+        toolInvocationId:
+          type: string
+          format: uuid
+          nullable: true
+        toolKey:
+          type: string
+        status:
+          $ref: '#/components/schemas/AgentApprovalStatus'
+        reason:
+          type: string
+        argumentsPreview:
+          type: object
+          additionalProperties: true
+        diffPreview:
+          type: object
+          nullable: true
+        requestedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        resolvedBy:
+          type: string
+          format: uuid
+          nullable: true
+        resolutionNote:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    ApprovalListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentApproval'
+        pagination:
+          $ref: '#/components/schemas/Pagination'

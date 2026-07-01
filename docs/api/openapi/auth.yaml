@@ -1,0 +1,1178 @@
+openapi: 3.1.0
+info:
+  title: Atlas Authentication API
+  version: 1.0.0
+  description: |
+    Authentication and identity endpoints for Atlas BOS.
+
+    Covers credential-based login, session management, registration, password
+    recovery, multi-factor authentication, enterprise SSO callbacks, and OAuth 2.0
+    authorization flows.
+
+    Aligns with database schemas `atlas_core.users`, `atlas_core.sessions`,
+    `atlas_core.refresh_tokens`, `atlas_core.mfa_devices`, and
+    `atlas_core.sso_connections`.
+
+    **OAuth 2.0 flows supported:**
+    - Authorization Code + PKCE (public clients — web, mobile)
+    - Authorization Code + client_secret (confidential clients — server apps)
+    - Refresh Token
+    - Client Credentials (service accounts)
+
+    See [07-authentication.md](../../architecture/phase-1/07-authentication.md) and
+    [00-conventions.md](../00-conventions.md).
+  contact:
+    name: Atlas Identity Team
+    url: https://docs.atlas.example.com/api/auth
+  x-atlas-api-version: "2026-06-30"
+
+servers:
+  - url: https://auth.atlas.example.com
+    description: Production
+  - url: https://auth.staging.atlas.example.com
+    description: Staging
+  - url: http://localhost:3001
+    description: Local development
+
+tags:
+  - name: Authentication
+    description: Login, logout, and session token management
+  - name: Registration
+    description: Self-serve account creation
+  - name: Password Recovery
+    description: Forgot and reset password flows
+  - name: MFA
+    description: Multi-factor authentication enrollment and verification
+  - name: SSO
+    description: Enterprise SAML/OIDC callback handling
+  - name: OAuth2
+    description: OAuth 2.0 authorization server endpoints
+
+paths:
+  /auth/login:
+    post:
+      operationId: login
+      summary: Login with email and password
+      description: |
+        Authenticates a user with email/password credentials. Returns session tokens
+        via httpOnly cookies (web) or JSON body (API clients with `Accept: application/json`).
+
+        If MFA is required, returns `200` with `mfa_required: true` and a partial
+        session token valid for 5 minutes pending MFA verification.
+      tags: [Authentication]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/AtlasVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: alice@acme.example.com
+              password: "********"
+              organization_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+              remember_device: false
+      responses:
+        '200':
+          description: Login successful or MFA required
+          headers:
+            Set-Cookie:
+              description: httpOnly session cookies for web clients
+              schema:
+                type: string
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: SSO enforced for organization — password login disabled
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: https://auth.atlas.example.com/errors/sso-required
+                title: SSO Required
+                status: 403
+                detail: Password login is disabled. Redirect to SSO.
+                code: auth_sso_required
+                sso_entry_url: https://auth.atlas.example.com/sso/acme-corp
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-atlas-rate-limit-tier: anonymous
+
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Logout current session
+      description: Revokes the current session and refresh token family. Clears cookies.
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '204':
+          description: Session revoked
+          headers:
+            Set-Cookie:
+              description: Cleared session cookies
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      x-atlas-rate-limit-tier: authenticated
+
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      summary: Refresh access token
+      description: |
+        Exchanges a valid refresh token for a new access token and rotated refresh token.
+        Web clients send the `atlas_refresh` httpOnly cookie; API clients send
+        `refresh_token` in the request body.
+
+        Refresh token rotation: each use invalidates the previous token. Reuse of an
+        old token revokes the entire session family (breach detection).
+      tags: [Authentication]
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Tokens refreshed
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-atlas-rate-limit-tier: authenticated
+
+  /auth/register:
+    post:
+      operationId: register
+      summary: Register new user
+      description: |
+        Creates a new Atlas user account. Sends email verification link (24h TTL).
+        User status is `PENDING_VERIFICATION` until email is confirmed.
+      tags: [Registration]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/AtlasVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '409':
+          description: Email already registered
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: https://auth.atlas.example.com/errors/conflict
+                title: Conflict
+                status: 409
+                detail: Email address is already registered.
+                code: auth_email_duplicate
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-atlas-rate-limit-tier: anonymous
+
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      summary: Request password reset
+      description: |
+        Sends a password reset email if the account exists. Always returns `200` to
+        prevent email enumeration. Reset token TTL: 1 hour, single-use.
+      tags: [Password Recovery]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '200':
+          description: Reset email sent (if account exists)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-atlas-rate-limit-tier: anonymous
+
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      summary: Reset password with token
+      description: |
+        Sets a new password using a valid reset token. Revokes all existing sessions
+        except optionally the current one.
+      tags: [Password Recovery]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Invalid or expired token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: https://auth.atlas.example.com/errors/bad-request
+                title: Bad Request
+                status: 400
+                detail: Password reset token is invalid or expired.
+                code: auth_reset_token_invalid
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-atlas-rate-limit-tier: anonymous
+
+  /auth/mfa/setup:
+    post:
+      operationId: setupMfa
+      summary: Begin MFA enrollment
+      description: |
+        Initiates MFA device enrollment. Supports `webauthn` (passkeys) and `totp`
+        (authenticator app). Returns method-specific challenge data.
+
+        On successful verification via `/auth/mfa/verify`, generates 10 single-use
+        recovery codes.
+      tags: [MFA]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaSetupRequest'
+      responses:
+        '200':
+          description: MFA setup challenge issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaSetupResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: MFA method already enrolled
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+      x-atlas-rate-limit-tier: authenticated
+
+  /auth/mfa/verify:
+    post:
+      operationId: verifyMfa
+      summary: Verify MFA challenge
+      description: |
+        Completes MFA verification during login or enrollment.
+
+        **Login flow:** Upgrades partial session (`mfa_pending`) to full session.
+        **Enrollment flow:** Confirms device registration and returns recovery codes.
+      tags: [MFA]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerifyRequest'
+      responses:
+        '200':
+          description: MFA verified
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/LoginResponse'
+                  - $ref: '#/components/schemas/MfaEnrollmentCompleteResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-atlas-rate-limit-tier: authenticated
+
+  /auth/sso/callback:
+    post:
+      operationId: ssoCallback
+      summary: SSO callback handler
+      description: |
+        Processes SAML assertion or OIDC authorization code from enterprise IdP.
+        Creates or links user account (JIT provisioning if enabled), establishes
+        session, and returns redirect URL for the web application.
+
+        This endpoint is also reachable via GET for OIDC authorization code redirects
+        (query parameters mirror the POST body fields).
+      tags: [SSO]
+      security: []
+      parameters:
+        - name: protocol
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [saml, oidc]
+        - name: organization_slug
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SsoCallbackRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SsoCallbackRequest'
+      responses:
+        '200':
+          description: SSO authentication successful
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SsoCallbackResponse'
+        '302':
+          description: Redirect to application after SSO (web flow)
+          headers:
+            Location:
+              schema:
+                type: string
+            Set-Cookie:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: SSO not configured or disabled for organization
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+      x-atlas-rate-limit-tier: anonymous
+
+  /oauth/authorize:
+    get:
+      operationId: oauthAuthorize
+      summary: OAuth 2.0 authorization endpoint
+      description: |
+        Initiates the OAuth 2.0 Authorization Code flow. Redirects authenticated
+        users to the consent screen; unauthenticated users are redirected to login
+        first, then returned here.
+
+        **PKCE required** for public clients (`code_challenge` + `code_challenge_method=S256`).
+
+        ### Supported Parameters
+
+        | Parameter | Required | Description |
+        |-----------|----------|-------------|
+        | `response_type` | Yes | Must be `code` |
+        | `client_id` | Yes | OAuth application UUID |
+        | `redirect_uri` | Yes | Must match registered URI |
+        | `scope` | Yes | Space-separated scopes |
+        | `state` | Recommended | CSRF protection |
+        | `code_challenge` | Public clients | PKCE challenge |
+        | `code_challenge_method` | Public clients | Must be `S256` |
+        | `organization_id` | Conditional | Target organization for token |
+      tags: [OAuth2]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: response_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [code]
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+        - name: scope
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "openid profile contacts:read invoices:read"
+        - name: state
+          in: query
+          schema:
+            type: string
+        - name: code_challenge
+          in: query
+          schema:
+            type: string
+        - name: code_challenge_method
+          in: query
+          schema:
+            type: string
+            enum: [S256]
+        - name: organization_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '302':
+          description: Redirect to redirect_uri with authorization code
+          headers:
+            Location:
+              schema:
+                type: string
+                example: https://app.example.com/callback?code=auth_code_xyz&state=abc123
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: User not authenticated — redirect to login
+        '403':
+          description: User denied consent or insufficient permissions for elevated scopes
+
+  /oauth/token:
+    post:
+      operationId: oauthToken
+      summary: OAuth 2.0 token endpoint
+      description: |
+        Exchanges authorization codes or refresh tokens for access tokens.
+        Supports multiple grant types.
+
+        ### Grant Types
+
+        | Grant Type | Usage | Authentication |
+        |------------|-------|----------------|
+        | `authorization_code` | User-delegated access | client_id + PKCE verifier or client_secret |
+        | `refresh_token` | Renew access token | client_id + refresh_token |
+        | `client_credentials` | Service account access | client_id + client_secret |
+
+        Access token lifetime: 15 minutes. Refresh token lifetime: 30 days (rolling).
+      tags: [OAuth2]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OAuthTokenRequest'
+            examples:
+              authorization_code:
+                summary: Authorization Code + PKCE
+                value:
+                  grant_type: authorization_code
+                  code: auth_code_xyz
+                  client_id: "550e8400-e29b-41d4-a716-446655440000"
+                  redirect_uri: https://app.example.com/callback
+                  code_verifier: dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+              refresh_token:
+                summary: Refresh Token
+                value:
+                  grant_type: refresh_token
+                  refresh_token: rt_opaque_token
+                  client_id: "550e8400-e29b-41d4-a716-446655440000"
+              client_credentials:
+                summary: Client Credentials (service account)
+                value:
+                  grant_type: client_credentials
+                  client_id: "550e8400-e29b-41d4-a716-446655440000"
+                  client_secret: secret_xyz
+                  scope: contacts:read invoices:read
+      responses:
+        '200':
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthTokenResponse'
+              example:
+                access_token: eyJhbGciOiJSUzI1NiIs...
+                token_type: Bearer
+                expires_in: 900
+                refresh_token: rt_opaque_token
+                scope: contacts:read invoices:read
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid client credentials or authorization code
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-atlas-rate-limit-tier: anonymous
+
+  /oauth/revoke:
+    post:
+      operationId: oauthRevoke
+      summary: Revoke OAuth token
+      description: Revokes an access or refresh token per RFC 7009.
+      tags: [OAuth2]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                token_type_hint:
+                  type: string
+                  enum: [access_token, refresh_token]
+                client_id:
+                  type: string
+                  format: uuid
+                client_secret:
+                  type: string
+      responses:
+        '200':
+          description: Token revoked (or was already invalid)
+        '401':
+          description: Invalid client credentials
+
+  /.well-known/jwks.json:
+    get:
+      operationId: getJwks
+      summary: JSON Web Key Set
+      description: Public keys for JWT access token verification (RS256).
+      tags: [OAuth2]
+      security: []
+      responses:
+        '200':
+          description: JWKS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JwksResponse'
+
+  /.well-known/openid-configuration:
+    get:
+      operationId: getOpenIdConfiguration
+      summary: OpenID Connect discovery document
+      tags: [OAuth2]
+      security: []
+      responses:
+        '200':
+          description: OIDC configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenIdConfiguration'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: RS256 JWT access token
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: atlas_refresh
+      description: httpOnly refresh token cookie (web clients)
+
+  parameters:
+    AtlasVersion:
+      name: Atlas-Version
+      in: header
+      schema:
+        type: string
+        default: "2026-06-30"
+    RequestId:
+      name: X-Request-Id
+      in: header
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  headers:
+    X-Request-Id:
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Malformed request
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Unauthorized:
+      description: Invalid credentials or expired token
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: https://auth.atlas.example.com/errors/unauthorized
+            title: Unauthorized
+            status: 401
+            detail: Invalid email or password.
+            code: auth_invalid_credentials
+    ValidationFailed:
+      description: Validation errors
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              code:
+                type: string
+              message:
+                type: string
+        sso_entry_url:
+          type: string
+          format: uri
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 12
+        organization_id:
+          type: string
+          format: uuid
+          description: Set active organization context in session
+        remember_device:
+          type: boolean
+          default: false
+
+    LoginResponse:
+      type: object
+      required: [mfa_required]
+      properties:
+        mfa_required:
+          type: boolean
+        mfa_pending_token:
+          type: string
+          description: Short-lived token for MFA verification (5 min TTL)
+        mfa_methods:
+          type: array
+          items:
+            type: string
+            enum: [webauthn, totp, sms, recovery_code]
+        access_token:
+          type: string
+          description: Present when mfa_required is false
+        refresh_token:
+          type: string
+          description: Present for API clients when mfa_required is false
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: Access token lifetime in seconds
+        session_id:
+          type: string
+          format: uuid
+        user:
+          $ref: '#/components/schemas/AuthUser'
+
+    RefreshRequest:
+      type: object
+      properties:
+        refresh_token:
+          type: string
+          description: Required for API clients; web clients use cookie
+
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+        session_id:
+          type: string
+          format: uuid
+
+    RegisterRequest:
+      type: object
+      required: [email, password, display_name]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 12
+          description: |
+            Must meet password policy: 12+ chars, uppercase, lowercase, digit,
+            special character. Checked against HaveIBeenPwned.
+        display_name:
+          type: string
+          maxLength: 255
+        locale:
+          type: string
+          default: en-US
+        timezone:
+          type: string
+          default: UTC
+        accept_terms:
+          type: boolean
+          description: Must be true
+
+    RegisterResponse:
+      type: object
+      required: [user_id, email, status, verification_sent]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        status:
+          type: string
+          enum: [PENDING_VERIFICATION]
+        verification_sent:
+          type: boolean
+        verification_expires_at:
+          type: string
+          format: date-time
+
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    ResetPasswordRequest:
+      type: object
+      required: [token, password]
+      properties:
+        token:
+          type: string
+          description: Single-use reset token from email link
+        password:
+          type: string
+          format: password
+          minLength: 12
+
+    MessageResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    MfaSetupRequest:
+      type: object
+      required: [method]
+      properties:
+        method:
+          type: string
+          enum: [webauthn, totp]
+        device_name:
+          type: string
+          description: Human-readable label for the MFA device
+
+    MfaSetupResponse:
+      type: object
+      required: [method, challenge_id]
+      properties:
+        method:
+          type: string
+          enum: [webauthn, totp]
+        challenge_id:
+          type: string
+          format: uuid
+        webauthn_options:
+          type: object
+          description: PublicKeyCredentialCreationOptions (WebAuthn)
+          properties:
+            rp:
+              type: object
+              properties:
+                name:
+                  type: string
+                id:
+                  type: string
+            challenge:
+              type: string
+            pubKeyCredParams:
+              type: array
+              items:
+                type: object
+            authenticatorSelection:
+              type: object
+            timeout:
+              type: integer
+        totp_uri:
+          type: string
+          description: otpauth:// URI for QR code display
+        totp_secret:
+          type: string
+          description: Base32 secret (shown once for manual entry)
+
+    MfaVerifyRequest:
+      type: object
+      required: [method]
+      properties:
+        method:
+          type: string
+          enum: [webauthn, totp, sms, recovery_code]
+        challenge_id:
+          type: string
+          format: uuid
+          description: From setup flow; omit during login challenge
+        mfa_pending_token:
+          type: string
+          description: From login response when mfa_required is true
+        code:
+          type: string
+          description: TOTP or SMS OTP code (6 digits)
+        recovery_code:
+          type: string
+          description: Single-use recovery code
+        webauthn_credential:
+          type: object
+          description: AuthenticatorAssertionResponse from WebAuthn API
+        remember_device:
+          type: boolean
+          default: false
+
+    MfaEnrollmentCompleteResponse:
+      type: object
+      required: [enrolled, recovery_codes]
+      properties:
+        enrolled:
+          type: boolean
+        device_id:
+          type: string
+          format: uuid
+        recovery_codes:
+          type: array
+          items:
+            type: string
+          description: 10 single-use recovery codes (shown once)
+
+    SsoCallbackRequest:
+      type: object
+      properties:
+        SAMLResponse:
+          type: string
+          description: Base64-encoded SAML assertion (SAML flow)
+        code:
+          type: string
+          description: OIDC authorization code
+        state:
+          type: string
+        RelayState:
+          type: string
+
+    SsoCallbackResponse:
+      type: object
+      required: [redirect_url, session_id]
+      properties:
+        redirect_url:
+          type: string
+          format: uri
+        session_id:
+          type: string
+          format: uuid
+        user:
+          $ref: '#/components/schemas/AuthUser'
+        jit_provisioned:
+          type: boolean
+          description: True if user was created via JIT provisioning
+
+    OAuthTokenRequest:
+      type: object
+      required: [grant_type]
+      properties:
+        grant_type:
+          type: string
+          enum: [authorization_code, refresh_token, client_credentials]
+        code:
+          type: string
+        redirect_uri:
+          type: string
+          format: uri
+        client_id:
+          type: string
+          format: uuid
+        client_secret:
+          type: string
+        code_verifier:
+          type: string
+          description: PKCE verifier (required for public clients)
+        refresh_token:
+          type: string
+        scope:
+          type: string
+
+    OAuthTokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+        refresh_token:
+          type: string
+        scope:
+          type: string
+        id_token:
+          type: string
+          description: Present when openid scope requested
+
+    AuthUser:
+      type: object
+      required: [id, email, email_verified]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        email_verified:
+          type: boolean
+        display_name:
+          type: string
+        avatar_url:
+          type: string
+          format: uri
+
+    JwksResponse:
+      type: object
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          items:
+            type: object
+            properties:
+              kty:
+                type: string
+              kid:
+                type: string
+              use:
+                type: string
+              alg:
+                type: string
+              n:
+                type: string
+              e:
+                type: string
+
+    OpenIdConfiguration:
+      type: object
+      properties:
+        issuer:
+          type: string
+          example: https://auth.atlas.example.com
+        authorization_endpoint:
+          type: string
+          example: https://auth.atlas.example.com/oauth/authorize
+        token_endpoint:
+          type: string
+          example: https://auth.atlas.example.com/oauth/token
+        revocation_endpoint:
+          type: string
+          example: https://auth.atlas.example.com/oauth/revoke
+        jwks_uri:
+          type: string
+          example: https://auth.atlas.example.com/.well-known/jwks.json
+        response_types_supported:
+          type: array
+          items:
+            type: string
+          example: [code]
+        grant_types_supported:
+          type: array
+          items:
+            type: string
+          example: [authorization_code, refresh_token, client_credentials]
+        scopes_supported:
+          type: array
+          items:
+            type: string
+          example:
+            - openid
+            - profile
+            - email
+            - platform:read
+            - platform:write
+            - contacts:read
+            - contacts:write
+            - invoices:read
+            - invoices:write
+            - projects:read
+            - projects:write
+            - webhooks:manage
+            - admin:read
+            - admin:write
+        code_challenge_methods_supported:
+          type: array
+          items:
+            type: string
+          example: [S256]
+        token_endpoint_auth_methods_supported:
+          type: array
+          items:
+            type: string
+          example: [client_secret_post, none]

@@ -1,0 +1,1159 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS Automation API
+  version: 1.0.0
+  description: |
+    REST API for the Automation bounded context (schema: `automation`).
+    Resources: AutomationRules, WorkflowDefinitions, WorkflowInstances, Approvals.
+servers:
+  - url: https://api.atlas.example.com
+security:
+  - bearerAuth: []
+tags:
+  - name: AutomationRules
+  - name: WorkflowDefinitions
+  - name: WorkflowInstances
+  - name: Approvals
+paths:
+  /v1/organizations/{organizationId}/automation-rules:
+    get:
+      operationId: listAutomationRules
+      tags: [AutomationRules]
+      summary: List automation rules
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AutomationRuleStatus'
+      responses:
+        '200':
+          description: Paginated automation rule list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRuleListResponse'
+    post:
+      operationId: createAutomationRule
+      tags: [AutomationRules]
+      summary: Create an automation rule
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationRuleCreate'
+      responses:
+        '201':
+          description: Automation rule created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRule'
+  /v1/organizations/{organizationId}/automation-rules/{automationRuleId}:
+    get:
+      operationId: getAutomationRule
+      tags: [AutomationRules]
+      summary: Get automation rule with triggers and actions
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/automationRuleId'
+      responses:
+        '200':
+          description: Automation rule details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRuleDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateAutomationRule
+      tags: [AutomationRules]
+      summary: Update an automation rule
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/automationRuleId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationRuleUpdate'
+      responses:
+        '200':
+          description: Automation rule updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRule'
+    delete:
+      operationId: deleteAutomationRule
+      tags: [AutomationRules]
+      summary: Soft-delete an automation rule
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/automationRuleId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '204':
+          description: Automation rule deleted
+  /v1/organizations/{organizationId}/automation-rules/{automationRuleId}/enable:
+    post:
+      operationId: enableAutomationRule
+      tags: [AutomationRules]
+      summary: Enable an automation rule
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/automationRuleId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: Rule enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRule'
+  /v1/organizations/{organizationId}/automation-rules/{automationRuleId}/disable:
+    post:
+      operationId: disableAutomationRule
+      tags: [AutomationRules]
+      summary: Disable an automation rule
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/automationRuleId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: Rule disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRule'
+  /v1/organizations/{organizationId}/automation-rules/{automationRuleId}/dry-run:
+    post:
+      operationId: dryRunAutomationRule
+      tags: [AutomationRules]
+      summary: Simulate rule execution without side effects
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/automationRuleId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                eventPayload:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Dry-run result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationDryRunResult'
+  /v1/organizations/{organizationId}/workflow-definitions:
+    get:
+      operationId: listWorkflowDefinitions
+      tags: [WorkflowDefinitions]
+      summary: List workflow definitions
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/WorkflowDefinitionStatus'
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated workflow definition list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowDefinitionListResponse'
+    post:
+      operationId: createWorkflowDefinition
+      tags: [WorkflowDefinitions]
+      summary: Create a workflow definition
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowDefinitionCreate'
+      responses:
+        '201':
+          description: Workflow definition created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowDefinition'
+  /v1/organizations/{organizationId}/workflow-definitions/{workflowDefinitionId}:
+    get:
+      operationId: getWorkflowDefinition
+      tags: [WorkflowDefinitions]
+      summary: Get workflow definition by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/workflowDefinitionId'
+      responses:
+        '200':
+          description: Workflow definition details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowDefinition'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateWorkflowDefinition
+      tags: [WorkflowDefinitions]
+      summary: Update a workflow definition
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/workflowDefinitionId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowDefinitionUpdate'
+      responses:
+        '200':
+          description: Workflow definition updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowDefinition'
+  /v1/organizations/{organizationId}/workflow-definitions/{workflowDefinitionId}/publish:
+    post:
+      operationId: publishWorkflowDefinition
+      tags: [WorkflowDefinitions]
+      summary: Publish a workflow definition
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/workflowDefinitionId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: Workflow definition published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowDefinition'
+  /v1/organizations/{organizationId}/workflow-instances:
+    get:
+      operationId: listWorkflowInstances
+      tags: [WorkflowInstances]
+      summary: List workflow instances
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/WorkflowInstanceStatus'
+        - name: definitionId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: entityType
+          in: query
+          schema:
+            type: string
+        - name: entityId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated workflow instance list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInstanceListResponse'
+    post:
+      operationId: startWorkflowInstance
+      tags: [WorkflowInstances]
+      summary: Start a new workflow instance
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowInstanceCreate'
+      responses:
+        '201':
+          description: Workflow instance started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInstance'
+  /v1/organizations/{organizationId}/workflow-instances/{workflowInstanceId}:
+    get:
+      operationId: getWorkflowInstance
+      tags: [WorkflowInstances]
+      summary: Get workflow instance with steps
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/workflowInstanceId'
+        - name: includeSteps
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Workflow instance details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInstanceDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/organizations/{organizationId}/workflow-instances/{workflowInstanceId}/cancel:
+    post:
+      operationId: cancelWorkflowInstance
+      tags: [WorkflowInstances]
+      summary: Cancel a workflow instance
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/workflowInstanceId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Workflow instance cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInstance'
+  /v1/organizations/{organizationId}/approvals:
+    get:
+      operationId: listWorkflowApprovals
+      tags: [Approvals]
+      summary: List workflow approval requests
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/WorkflowApprovalStatus'
+        - name: instanceId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated approval list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowApprovalListResponse'
+  /v1/organizations/{organizationId}/approvals/{approvalId}:
+    get:
+      operationId: getWorkflowApproval
+      tags: [Approvals]
+      summary: Get workflow approval by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/approvalId'
+      responses:
+        '200':
+          description: Approval details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowApproval'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/organizations/{organizationId}/approvals/{approvalId}/approve:
+    post:
+      operationId: approveWorkflowStep
+      tags: [Approvals]
+      summary: Approve a workflow step
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/approvalId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolutionNote:
+                  type: string
+                formData:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Approval granted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowApproval'
+  /v1/organizations/{organizationId}/approvals/{approvalId}/reject:
+    post:
+      operationId: rejectWorkflowStep
+      tags: [Approvals]
+      summary: Reject a workflow step
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/approvalId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolutionNote]
+              properties:
+                resolutionNote:
+                  type: string
+      responses:
+        '200':
+          description: Approval rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowApproval'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    organizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    automationRuleId:
+      name: automationRuleId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    workflowDefinitionId:
+      name: workflowDefinitionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    workflowInstanceId:
+      name: workflowInstanceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    approvalId:
+      name: approvalId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ifMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+    Pagination:
+      type: object
+      required: [has_more, limit]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+    AutomationRuleStatus:
+      type: string
+      enum: [draft, enabled, disabled, archived]
+    AutomationTriggerType:
+      type: string
+      enum: [event, schedule, webhook, manual, entity_change]
+    AutomationActionType:
+      type: string
+      enum: [send_notification, send_email, update_entity, create_entity, webhook_call, invoke_agent, start_workflow, tag_entity, delay, condition_branch]
+    ActionOnFailure:
+      type: string
+      enum: [stop, continue, retry, compensate]
+    RetryBackoffType:
+      type: string
+      enum: [fixed, exponential, linear]
+    AutomationTrigger:
+      type: object
+      required: [triggerType]
+      properties:
+        id:
+          type: string
+          format: uuid
+        triggerOrder:
+          type: integer
+        triggerType:
+          $ref: '#/components/schemas/AutomationTriggerType'
+        eventType:
+          type: string
+          nullable: true
+        scheduleCron:
+          type: string
+          nullable: true
+        scheduleTimezone:
+          type: string
+        webhookPath:
+          type: string
+          nullable: true
+        filterExpression:
+          type: string
+          nullable: true
+        filterJson:
+          type: object
+          additionalProperties: true
+        isActive:
+          type: boolean
+    AutomationAction:
+      type: object
+      required: [actionOrder, actionType, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        actionOrder:
+          type: integer
+        actionType:
+          $ref: '#/components/schemas/AutomationActionType'
+        name:
+          type: string
+        config:
+          type: object
+          additionalProperties: true
+        conditionExpression:
+          type: string
+          nullable: true
+        onFailure:
+          $ref: '#/components/schemas/ActionOnFailure'
+        timeoutSeconds:
+          type: integer
+        isActive:
+          type: boolean
+    AutomationRule:
+      type: object
+      required: [id, organizationId, name, status, ruleVersion]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/AutomationRuleStatus'
+        ruleVersion:
+          type: integer
+        ownerId:
+          type: string
+          format: uuid
+          nullable: true
+        maxExecutionsHour:
+          type: integer
+          nullable: true
+        maxExecutionsDay:
+          type: integer
+          nullable: true
+        concurrencyLimit:
+          type: integer
+          nullable: true
+        retryMaxAttempts:
+          type: integer
+          nullable: true
+        retryBackoff:
+          $ref: '#/components/schemas/RetryBackoffType'
+        dryRunAvailable:
+          type: boolean
+        lastExecutedAt:
+          type: string
+          format: date-time
+          nullable: true
+        executionCount:
+          type: string
+          description: int64 as string
+        tags:
+          type: array
+          items:
+            type: string
+        settings:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    AutomationRuleDetail:
+      allOf:
+        - $ref: '#/components/schemas/AutomationRule'
+        - type: object
+          properties:
+            triggers:
+              type: array
+              items:
+                $ref: '#/components/schemas/AutomationTrigger'
+            actions:
+              type: array
+              items:
+                $ref: '#/components/schemas/AutomationAction'
+    AutomationRuleCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        triggers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AutomationTrigger'
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AutomationAction'
+        settings:
+          type: object
+          additionalProperties: true
+        tags:
+          type: array
+          items:
+            type: string
+    AutomationRuleUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/AutomationRuleStatus'
+        triggers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AutomationTrigger'
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AutomationAction'
+        settings:
+          type: object
+          additionalProperties: true
+    AutomationDryRunResult:
+      type: object
+      properties:
+        matched:
+          type: boolean
+        actionsPlanned:
+          type: array
+          items:
+            type: object
+            properties:
+              actionType:
+                $ref: '#/components/schemas/AutomationActionType'
+              name:
+                type: string
+              config:
+                type: object
+                additionalProperties: true
+        warnings:
+          type: array
+          items:
+            type: string
+    AutomationRuleListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AutomationRule'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    WorkflowDefinitionStatus:
+      type: string
+      enum: [draft, published, deprecated, archived]
+    WorkflowDefinition:
+      type: object
+      required: [id, name, slug, status, definitionVersion]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        definitionVersion:
+          type: integer
+        status:
+          $ref: '#/components/schemas/WorkflowDefinitionStatus'
+        category:
+          type: string
+        graphDefinition:
+          type: object
+          additionalProperties: true
+        slaPolicies:
+          type: object
+          additionalProperties: true
+        compensationHandlers:
+          type: object
+          additionalProperties: true
+        inputSchema:
+          type: object
+          additionalProperties: true
+        outputSchema:
+          type: object
+          additionalProperties: true
+        estimatedDurationHours:
+          type: integer
+          nullable: true
+        isTemplate:
+          type: boolean
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    WorkflowDefinitionCreate:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        graphDefinition:
+          type: object
+          additionalProperties: true
+        inputSchema:
+          type: object
+          additionalProperties: true
+        outputSchema:
+          type: object
+          additionalProperties: true
+        isTemplate:
+          type: boolean
+    WorkflowDefinitionUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        graphDefinition:
+          type: object
+          additionalProperties: true
+        slaPolicies:
+          type: object
+          additionalProperties: true
+        inputSchema:
+          type: object
+          additionalProperties: true
+        outputSchema:
+          type: object
+          additionalProperties: true
+    WorkflowDefinitionListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowDefinition'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    WorkflowInstanceStatus:
+      type: string
+      enum: [running, waiting, completed, failed, cancelled, compensating, suspended]
+    WorkflowInitiatorType:
+      type: string
+      enum: [user, automation, agent, system, api]
+    WorkflowNodeType:
+      type: string
+      enum: [start_event, end_event, exclusive_gateway, parallel_gateway, inclusive_gateway, human_task, service_task, agent_task, timer_event, sub_workflow, compensation_handler]
+    WorkflowStepStatus:
+      type: string
+      enum: [pending, active, waiting, completed, failed, skipped, compensated]
+    WorkflowAssigneeType:
+      type: string
+      enum: [user, role, team, agent]
+    WorkflowStep:
+      type: object
+      required: [id, instanceId, nodeId, nodeType, status, tokenId]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+        nodeType:
+          $ref: '#/components/schemas/WorkflowNodeType'
+        stepName:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/WorkflowStepStatus'
+        assigneeId:
+          type: string
+          format: uuid
+          nullable: true
+        assigneeType:
+          $ref: '#/components/schemas/WorkflowAssigneeType'
+        inputData:
+          type: object
+          additionalProperties: true
+        outputData:
+          type: object
+          nullable: true
+        agentRunId:
+          type: string
+          format: uuid
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+    WorkflowInstance:
+      type: object
+      required: [id, organizationId, definitionId, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        definitionId:
+          type: string
+          format: uuid
+        definitionVersion:
+          type: integer
+        parentInstanceId:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          $ref: '#/components/schemas/WorkflowInstanceStatus'
+        entityType:
+          type: string
+          nullable: true
+        entityId:
+          type: string
+          format: uuid
+          nullable: true
+        correlationId:
+          type: string
+          nullable: true
+        initiatorType:
+          $ref: '#/components/schemas/WorkflowInitiatorType'
+        initiatorId:
+          type: string
+          format: uuid
+          nullable: true
+        currentNodeId:
+          type: string
+          nullable: true
+        contextVariables:
+          type: object
+          additionalProperties: true
+        inputPayload:
+          type: object
+          additionalProperties: true
+        outputPayload:
+          type: object
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+        slaBreachAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    WorkflowInstanceCreate:
+      type: object
+      required: [definitionId]
+      properties:
+        definitionId:
+          type: string
+          format: uuid
+        entityType:
+          type: string
+        entityId:
+          type: string
+          format: uuid
+        correlationId:
+          type: string
+        inputPayload:
+          type: object
+          additionalProperties: true
+        contextVariables:
+          type: object
+          additionalProperties: true
+    WorkflowInstanceDetail:
+      allOf:
+        - $ref: '#/components/schemas/WorkflowInstance'
+        - type: object
+          properties:
+            steps:
+              type: array
+              items:
+                $ref: '#/components/schemas/WorkflowStep'
+    WorkflowInstanceListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowInstance'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    WorkflowApprovalType:
+      type: string
+      enum: [single, any_of, all_of, sequential]
+    WorkflowApprovalStatus:
+      type: string
+      enum: [pending, approved, rejected, expired, delegated, cancelled]
+    WorkflowApproval:
+      type: object
+      required: [id, organizationId, instanceId, stepId, title, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        instanceId:
+          type: string
+          format: uuid
+        stepId:
+          type: string
+          format: uuid
+        approvalType:
+          $ref: '#/components/schemas/WorkflowApprovalType'
+        status:
+          $ref: '#/components/schemas/WorkflowApprovalStatus'
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        assigneeIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        approvedBy:
+          type: string
+          format: uuid
+          nullable: true
+        rejectedBy:
+          type: string
+          format: uuid
+          nullable: true
+        formData:
+          type: object
+          additionalProperties: true
+        diffPreview:
+          type: object
+          nullable: true
+        requestedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        resolutionNote:
+          type: string
+          nullable: true
+        escalationLevel:
+          type: integer
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    WorkflowApprovalListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowApproval'
+        pagination:
+          $ref: '#/components/schemas/Pagination'

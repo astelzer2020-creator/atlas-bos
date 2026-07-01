@@ -1,0 +1,997 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS Analytics API
+  version: 1.0.0
+  description: |
+    REST API for the Analytics bounded context (schema: `analytics`).
+    Resources: Dashboards, Reports, Metrics.
+servers:
+  - url: https://api.atlas.example.com
+security:
+  - bearerAuth: []
+tags:
+  - name: Dashboards
+  - name: Reports
+  - name: Metrics
+paths:
+  /v1/organizations/{organizationId}/dashboards:
+    get:
+      operationId: listDashboards
+      tags: [Dashboards]
+      summary: List dashboards
+      x-atlas-latency-tier: standard
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: visibility
+          in: query
+          schema:
+            $ref: '#/components/schemas/DashboardVisibility'
+        - name: ownerUserId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated dashboard list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardListResponse'
+    post:
+      operationId: createDashboard
+      tags: [Dashboards]
+      summary: Create a dashboard
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DashboardCreate'
+      responses:
+        '201':
+          description: Dashboard created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+  /v1/organizations/{organizationId}/dashboards/{dashboardId}:
+    get:
+      operationId: getDashboard
+      tags: [Dashboards]
+      summary: Get dashboard with widgets
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/dashboardId'
+        - name: includeWidgets
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Dashboard details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateDashboard
+      tags: [Dashboards]
+      summary: Update a dashboard
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/dashboardId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DashboardUpdate'
+      responses:
+        '200':
+          description: Dashboard updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+    delete:
+      operationId: deleteDashboard
+      tags: [Dashboards]
+      summary: Soft-delete a dashboard
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/dashboardId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '204':
+          description: Dashboard deleted
+  /v1/organizations/{organizationId}/dashboards/{dashboardId}/widgets:
+    post:
+      operationId: addDashboardWidget
+      tags: [Dashboards]
+      summary: Add a widget to a dashboard
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/dashboardId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DashboardWidgetCreate'
+      responses:
+        '201':
+          description: Widget added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardWidget'
+  /v1/organizations/{organizationId}/reports:
+    get:
+      operationId: listReports
+      tags: [Reports]
+      summary: List reports
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: reportType
+          in: query
+          schema:
+            $ref: '#/components/schemas/ReportType'
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated report list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportListResponse'
+    post:
+      operationId: createReport
+      tags: [Reports]
+      summary: Create a report definition
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportCreate'
+      responses:
+        '201':
+          description: Report created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+  /v1/organizations/{organizationId}/reports/{reportId}:
+    get:
+      operationId: getReport
+      tags: [Reports]
+      summary: Get report by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/reportId'
+      responses:
+        '200':
+          description: Report details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateReport
+      tags: [Reports]
+      summary: Update a report
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/reportId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportUpdate'
+      responses:
+        '200':
+          description: Report updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+  /v1/organizations/{organizationId}/reports/{reportId}/run:
+    post:
+      operationId: runReport
+      tags: [Reports]
+      summary: Trigger a report run
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/reportId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                parameters:
+                  type: object
+                  additionalProperties: true
+                outputFormat:
+                  $ref: '#/components/schemas/ReportOutputFormat'
+      responses:
+        '202':
+          description: Report run accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportRun'
+  /v1/organizations/{organizationId}/reports/{reportId}/runs:
+    get:
+      operationId: listReportRuns
+      tags: [Reports]
+      summary: List report run history
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/reportId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ReportRunStatus'
+      responses:
+        '200':
+          description: Paginated report run list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportRunListResponse'
+  /v1/metrics:
+    get:
+      operationId: listMetricDefinitions
+      tags: [Metrics]
+      summary: List global metric definitions catalog
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/MetricCategory'
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Paginated metric definition list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricDefinitionListResponse'
+  /v1/metrics/{metricCode}:
+    get:
+      operationId: getMetricDefinition
+      tags: [Metrics]
+      summary: Get metric definition by code
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/metricCode'
+      responses:
+        '200':
+          description: Metric definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricDefinition'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/organizations/{organizationId}/metrics/query:
+    post:
+      operationId: queryMetrics
+      tags: [Metrics]
+      summary: Query metric snapshots for organization
+      x-atlas-latency-tier: interactive
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MetricQueryRequest'
+      responses:
+        '200':
+          description: Metric query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricQueryResponse'
+  /v1/organizations/{organizationId}/metrics/{metricCode}/snapshots:
+    get:
+      operationId: listMetricSnapshots
+      tags: [Metrics]
+      summary: List metric snapshots for a metric
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/metricCode'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: granularity
+          in: query
+          schema:
+            $ref: '#/components/schemas/SnapshotGranularity'
+        - name: periodStart
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: periodEnd
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Paginated metric snapshots
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricSnapshotListResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    organizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    dashboardId:
+      name: dashboardId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    reportId:
+      name: reportId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    metricCode:
+      name: metricCode
+      in: path
+      required: true
+      schema:
+        type: string
+    cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ifMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+    Pagination:
+      type: object
+      required: [has_more, limit]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+    DashboardVisibility:
+      type: string
+      enum: [private, team, tenant, public]
+    WidgetType:
+      type: string
+      enum: [kpi, line_chart, bar_chart, pie_chart, table, funnel, gauge, map, text]
+    ReportType:
+      type: string
+      enum: [standard, custom, compliance, executive]
+    ReportOutputFormat:
+      type: string
+      enum: [pdf, csv, xlsx, json]
+    ReportRunStatus:
+      type: string
+      enum: [pending, running, completed, failed, canceled]
+    ReportTriggeredBy:
+      type: string
+      enum: [schedule, manual, api, workflow]
+    MetricCategory:
+      type: string
+      enum: [sales, finance, support, hr, projects, marketing, platform, ai, custom]
+    AggregationMethod:
+      type: string
+      enum: [sum, avg, count, min, max, last, distinct_count]
+    MetricValueType:
+      type: string
+      enum: [numeric, currency, percentage, duration, count]
+    RefreshInterval:
+      type: string
+      enum: [realtime, hourly, daily, weekly]
+    SnapshotGranularity:
+      type: string
+      enum: [hour, day, week, month, quarter, year]
+    SnapshotSource:
+      type: string
+      enum: [aggregator, backfill, manual, import]
+    Dashboard:
+      type: object
+      required: [id, organizationId, ownerUserId, name, visibility]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        ownerUserId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        visibility:
+          $ref: '#/components/schemas/DashboardVisibility'
+        layoutConfig:
+          type: object
+          additionalProperties: true
+        filterDefaults:
+          type: object
+          additionalProperties: true
+        isDefault:
+          type: boolean
+        isSystem:
+          type: boolean
+        refreshIntervalSec:
+          type: integer
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+          format: uuid
+        version:
+          type: integer
+    DashboardWidget:
+      type: object
+      required: [id, dashboardId, widgetType, title]
+      properties:
+        id:
+          type: string
+          format: uuid
+        dashboardId:
+          type: string
+          format: uuid
+        metricDefinitionId:
+          type: string
+          format: uuid
+          nullable: true
+        metricCode:
+          type: string
+          nullable: true
+        widgetType:
+          $ref: '#/components/schemas/WidgetType'
+        title:
+          type: string
+        positionX:
+          type: integer
+        positionY:
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+        queryConfig:
+          type: object
+          additionalProperties: true
+        visualizationConfig:
+          type: object
+          additionalProperties: true
+        displayOrder:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    DashboardDetail:
+      allOf:
+        - $ref: '#/components/schemas/Dashboard'
+        - type: object
+          properties:
+            widgets:
+              type: array
+              items:
+                $ref: '#/components/schemas/DashboardWidget'
+    DashboardCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        visibility:
+          $ref: '#/components/schemas/DashboardVisibility'
+        layoutConfig:
+          type: object
+          additionalProperties: true
+        filterDefaults:
+          type: object
+          additionalProperties: true
+        widgets:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardWidgetCreate'
+    DashboardUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        visibility:
+          $ref: '#/components/schemas/DashboardVisibility'
+        layoutConfig:
+          type: object
+          additionalProperties: true
+        filterDefaults:
+          type: object
+          additionalProperties: true
+        refreshIntervalSec:
+          type: integer
+    DashboardWidgetCreate:
+      type: object
+      required: [widgetType, title]
+      properties:
+        metricCode:
+          type: string
+        metricDefinitionId:
+          type: string
+          format: uuid
+        widgetType:
+          $ref: '#/components/schemas/WidgetType'
+        title:
+          type: string
+        positionX:
+          type: integer
+        positionY:
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+        queryConfig:
+          type: object
+          additionalProperties: true
+        visualizationConfig:
+          type: object
+          additionalProperties: true
+    DashboardListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dashboard'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    Report:
+      type: object
+      required: [id, organizationId, ownerUserId, name, reportType, outputFormat]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        ownerUserId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        reportType:
+          $ref: '#/components/schemas/ReportType'
+        queryDefinition:
+          type: object
+          additionalProperties: true
+        outputFormat:
+          $ref: '#/components/schemas/ReportOutputFormat'
+        scheduleCron:
+          type: string
+          nullable: true
+        scheduleTimezone:
+          type: string
+        recipients:
+          type: array
+          items: {}
+        isActive:
+          type: boolean
+        lastRunAt:
+          type: string
+          format: date-time
+          nullable: true
+        nextRunAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    ReportCreate:
+      type: object
+      required: [name, queryDefinition]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        reportType:
+          $ref: '#/components/schemas/ReportType'
+        queryDefinition:
+          type: object
+          additionalProperties: true
+        outputFormat:
+          $ref: '#/components/schemas/ReportOutputFormat'
+        scheduleCron:
+          type: string
+        scheduleTimezone:
+          type: string
+        recipients:
+          type: array
+          items: {}
+    ReportUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        queryDefinition:
+          type: object
+          additionalProperties: true
+        outputFormat:
+          $ref: '#/components/schemas/ReportOutputFormat'
+        scheduleCron:
+          type: string
+        isActive:
+          type: boolean
+        recipients:
+          type: array
+          items: {}
+    ReportRun:
+      type: object
+      required: [id, organizationId, reportId, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        reportId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/ReportRunStatus'
+        triggeredBy:
+          $ref: '#/components/schemas/ReportTriggeredBy'
+        triggeredByUserId:
+          type: string
+          format: uuid
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rowCount:
+          type: string
+          nullable: true
+        fileSizeBytes:
+          type: string
+          nullable: true
+        downloadUrl:
+          type: string
+          format: uri
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+        parameters:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+    ReportListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Report'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    ReportRunListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportRun'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    MetricDefinition:
+      type: object
+      required: [id, code, name, category, unit, aggregationMethod]
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        category:
+          $ref: '#/components/schemas/MetricCategory'
+        unit:
+          type: string
+        aggregationMethod:
+          $ref: '#/components/schemas/AggregationMethod'
+        valueType:
+          $ref: '#/components/schemas/MetricValueType'
+        computationRule:
+          type: object
+          additionalProperties: true
+        sourceEventTypes:
+          type: array
+          items:
+            type: string
+        isTenantScoped:
+          type: boolean
+        isActive:
+          type: boolean
+        refreshInterval:
+          $ref: '#/components/schemas/RefreshInterval'
+        retentionDays:
+          type: integer
+        metadata:
+          type: object
+          additionalProperties: true
+    MetricDefinitionListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricDefinition'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    MetricSnapshot:
+      type: object
+      required: [id, organizationId, metricDefinitionId, granularity, periodStart, periodEnd]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        metricDefinitionId:
+          type: string
+          format: uuid
+        metricCode:
+          type: string
+        granularity:
+          $ref: '#/components/schemas/SnapshotGranularity'
+        periodStart:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+        valueNumeric:
+          type: string
+          nullable: true
+        valueJson:
+          type: object
+          nullable: true
+        dimensions:
+          type: object
+          additionalProperties: true
+        sampleCount:
+          type: string
+        computedAt:
+          type: string
+          format: date-time
+        source:
+          $ref: '#/components/schemas/SnapshotSource'
+    MetricQueryRequest:
+      type: object
+      required: [metrics, periodStart, periodEnd]
+      properties:
+        metrics:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        granularity:
+          $ref: '#/components/schemas/SnapshotGranularity'
+        periodStart:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+        dimensions:
+          type: object
+          additionalProperties: true
+        groupBy:
+          type: array
+          items:
+            type: string
+    MetricQuerySeries:
+      type: object
+      required: [metricCode, dataPoints]
+      properties:
+        metricCode:
+          type: string
+        unit:
+          type: string
+        dataPoints:
+          type: array
+          items:
+            type: object
+            required: [periodStart, value]
+            properties:
+              periodStart:
+                type: string
+                format: date-time
+              periodEnd:
+                type: string
+                format: date-time
+              value:
+                type: string
+              dimensions:
+                type: object
+                additionalProperties: true
+    MetricQueryResponse:
+      type: object
+      required: [organizationId, series]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        periodStart:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+        granularity:
+          $ref: '#/components/schemas/SnapshotGranularity'
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricQuerySeries'
+    MetricSnapshotListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricSnapshot'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
