@@ -1,0 +1,42 @@
+{
+  "name": "@atlas/worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Atlas BOS — Background worker and Kafka consumer process",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch --env-file=../../.env src/main.ts",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@atlas/database": "workspace:*",
+    "@atlas/event-bus": "workspace:*",
+    "@atlas/module-ai": "workspace:*",
+    "@atlas/module-audit": "workspace:*",
+    "@atlas/module-automation": "workspace:*",
+    "@atlas/module-crm": "workspace:*",
+    "@atlas/module-finance": "workspace:*",
+    "@atlas/module-notifications": "workspace:*",
+    "@atlas/module-projects": "workspace:*",
+    "@atlas/module-storage": "workspace:*",
+    "@atlas/module-tenant-identity": "workspace:*",
+    "@atlas/module-workflow": "workspace:*",
+    "@atlas/platform": "workspace:*",
+    "@atlas/queue": "workspace:*",
+    "@atlas/shared-kernel": "workspace:*",
+    "ioredis": "^5.4.2",
+    "ulid": "^2.3.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
