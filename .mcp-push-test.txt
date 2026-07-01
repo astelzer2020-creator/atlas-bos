@@ -1,1 +1,1 @@
-connectivity test
+connectivity probe 2
