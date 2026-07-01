@@ -1,0 +1,241 @@
+@import "tailwindcss";
+
+/* ─── Light theme (default) ─────────────────────────────────────────────── */
+
+:root,
+[data-theme="light"] {
+  /* Brand */
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #d9e6ff;
+  --color-brand-500: #3b6fe8;
+  --color-brand-600: #2b5ad4;
+  --color-brand-700: #1e47b8;
+  --color-brand-900: #0f2866;
+
+  /* Surfaces */
+  --color-bg-canvas: #f8f9fb;
+  --color-bg-surface: #ffffff;
+  --color-bg-elevated: #ffffff;
+  --color-bg-subtle: #f1f3f6;
+  --color-bg-inset: #e8ebf0;
+
+  /* Borders */
+  --color-border-default: #d8dce3;
+  --color-border-strong: #b8bfc9;
+
+  /* Text */
+  --color-text-primary: #111318;
+  --color-text-secondary: #5c6370;
+  --color-text-tertiary: #8b939f;
+  --color-text-inverse: #ffffff;
+  --color-text-link: #2b5ad4;
+
+  /* Semantic */
+  --color-success-500: #16a34a;
+  --color-success-bg: #ecfdf3;
+  --color-warning-500: #d97706;
+  --color-warning-bg: #fffbeb;
+  --color-error-500: #dc2626;
+  --color-error-bg: #fef2f2;
+  --color-info-500: #0ea5e9;
+  --color-info-bg: #f0f9ff;
+
+  /* Module accents */
+  --color-module-crm: #6366f1;
+  --color-module-sales: #8b5cf6;
+  --color-module-finance: #059669;
+  --color-module-hr: #ec4899;
+  --color-module-pm: #f97316;
+  --color-module-support: #14b8a6;
+  --color-module-docs: #64748b;
+  --color-module-msg: #3b82f6;
+  --color-module-mkt: #e11d48;
+  --color-module-inv: #84cc16;
+  --color-module-legal: #7c3aed;
+  --color-module-ana: #06b6d4;
+  --color-module-web: #a855f7;
+  --color-module-sch: #0d9488;
+  --color-module-kb: #ca8a04;
+  --color-module-aut: #f43f5e;
+  --color-module-erp: #475569;
+
+  /* Elevation */
+  --elevation-0: none;
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --elevation-2: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --elevation-3: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --elevation-4: 0 16px 48px rgba(0, 0, 0, 0.16);
+}
+
+/* ─── Dark theme ──────────────────────────────────────────────────────────── */
+
+[data-theme="dark"] {
+  --color-brand-50: #0f1a33;
+  --color-brand-100: #152447;
+  --color-brand-500: #5b8def;
+  --color-brand-600: #4a7fe0;
+  --color-brand-700: #3b6fe8;
+  --color-brand-900: #a8c4ff;
+
+  --color-bg-canvas: #0d0f12;
+  --color-bg-surface: #16181d;
+  --color-bg-elevated: #1c1f26;
+  --color-bg-subtle: #22262e;
+  --color-bg-inset: #2a2f38;
+
+  --color-border-default: #2e3440;
+  --color-border-strong: #3d4554;
+
+  --color-text-primary: #f4f5f7;
+  --color-text-secondary: #9ca3af;
+  --color-text-tertiary: #6b7280;
+  --color-text-inverse: #111318;
+  --color-text-link: #7ba3ff;
+
+  --color-success-500: #22c55e;
+  --color-success-bg: #0d2818;
+  --color-warning-500: #f59e0b;
+  --color-warning-bg: #2a1f0a;
+  --color-error-500: #ef4444;
+  --color-error-bg: #2a1212;
+  --color-info-500: #38bdf8;
+  --color-info-bg: #0c1e2a;
+
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --elevation-2: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --elevation-3: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --elevation-4: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
+
+/* ─── Typography ──────────────────────────────────────────────────────────── */
+
+:root {
+  --font-sans: "Inter Variable", "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+
+  --text-display-lg-size: 2.25rem;
+  --text-display-lg-line: 1.2;
+  --text-display-md-size: 1.875rem;
+  --text-display-md-line: 1.25;
+  --text-heading-lg-size: 1.5rem;
+  --text-heading-lg-line: 1.3;
+  --text-heading-md-size: 1.25rem;
+  --text-heading-md-line: 1.35;
+  --text-heading-sm-size: 1rem;
+  --text-heading-sm-line: 1.4;
+  --text-body-lg-size: 1rem;
+  --text-body-lg-line: 1.5;
+  --text-body-md-size: 0.875rem;
+  --text-body-md-line: 1.5;
+  --text-body-sm-size: 0.75rem;
+  --text-body-sm-line: 1.45;
+  --text-label-md-size: 0.875rem;
+  --text-label-md-line: 1.4;
+  --text-label-sm-size: 0.75rem;
+  --text-label-sm-line: 1.4;
+  --text-mono-md-size: 0.8125rem;
+  --text-mono-md-line: 1.5;
+}
+
+/* ─── Spacing ─────────────────────────────────────────────────────────────── */
+
+:root {
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+}
+
+/* ─── Radius ──────────────────────────────────────────────────────────────── */
+
+:root {
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-full: 9999px;
+}
+
+/* ─── Motion ──────────────────────────────────────────────────────────────── */
+
+:root {
+  --duration-fast: 100ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 400ms;
+
+  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ─── Focus ring ──────────────────────────────────────────────────────────── */
+
+:root {
+  --focus-ring: 0 0 0 2px var(--color-bg-surface), 0 0 0 4px var(--color-brand-500);
+}
+
+/* ─── Breakpoints (reference) ─────────────────────────────────────────────── */
+
+:root {
+  --breakpoint-sm: 320px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1440px;
+}
+
+/* ─── Base styles ─────────────────────────────────────────────────────────── */
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    border-color: var(--color-border-default);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-size: var(--text-body-md-size);
+    line-height: var(--text-body-md-line);
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-canvas);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* ─── Utilities ───────────────────────────────────────────────────────────── */
+
+@layer utilities {
+  .focus-ring {
+    outline: none;
+  }
+
+  .focus-ring:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ─── Reduced motion ──────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
