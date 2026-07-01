@@ -1,0 +1,2724 @@
+// Atlas BOS � Prisma schema (Phase 6: platform + services)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["atlas_core", "notifications", "storage", "atlas_audit", "automation", "ai_agents", "ai_memory", "customer", "ledger", "projects"]
+}
+enum OrganizationStatus {
+  PROVISIONING
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+
+  @@schema("atlas_core")
+}
+
+enum IsolationTier {
+  SHARED_RLS
+  DEDICATED_SCHEMA
+  DEDICATED_CLUSTER
+
+  @@schema("atlas_core")
+}
+
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+  REMOVED
+
+  @@schema("atlas_core")
+}
+
+enum TeamMemberRole {
+  LEAD
+  MEMBER
+
+  @@schema("atlas_core")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  REVOKED
+
+  @@schema("atlas_core")
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+
+  @@schema("atlas_core")
+}
+
+enum UserType {
+  HUMAN
+  SERVICE_ACCOUNT
+  AGENT
+
+  @@schema("atlas_core")
+}
+
+enum CredentialType {
+  PASSWORD
+  OAUTH_GOOGLE
+  OAUTH_MICROSOFT
+  SAML
+  WEBAUTHN
+
+  @@schema("atlas_core")
+}
+
+enum MfaDeviceType {
+  TOTP
+  WEBAUTHN
+  SMS
+
+  @@schema("atlas_core")
+}
+
+enum SsoProtocol {
+  SAML
+  OIDC
+
+  @@schema("atlas_core")
+}
+
+enum ApiKeyStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+
+  @@schema("atlas_core")
+}
+
+enum PrincipalType {
+  USER
+  SERVICE_ACCOUNT
+  API_KEY
+  AGENT
+  OAUTH_APP
+
+  @@schema("atlas_core")
+}
+
+enum ScopeType {
+  ORGANIZATION
+  WORKSPACE
+  TEAM
+  RESOURCE
+
+  @@schema("atlas_core")
+}
+
+enum PermissionEffect {
+  ALLOW
+  DENY
+
+  @@schema("atlas_core")
+}
+
+enum PolicyEffect {
+  ALLOW
+  DENY
+
+  @@schema("atlas_core")
+}
+
+enum PolicyBindType {
+  ORGANIZATION
+  WORKSPACE
+  TEAM
+  ROLE
+  RESOURCE_TYPE
+
+  @@schema("atlas_core")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PLATFORM CORE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Workspace {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug        String
+  name        String
+  displayName String?   @map("display_name")
+  ownerUserId String    @map("owner_user_id") @db.Uuid
+  planId      String?   @map("plan_id") @db.Uuid
+  settings    Json      @default("{}")
+  metadata    Json      @default("{}")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdById String?   @map("created_by_id") @db.Uuid
+  updatedById String?   @map("updated_by_id") @db.Uuid
+  version     Int       @default(1)
+
+  owner         User              @relation("WorkspaceOwner", fields: [ownerUserId], references: [id])
+  organizations Organization[]
+  members       WorkspaceMember[]
+  sessions      Session[]
+  projects      Project[]
+
+  @@index([ownerUserId], map: "idx_workspaces_owner_user_id")
+  @@index([slug], map: "idx_workspaces_slug")
+  @@map("workspaces")
+  @@schema("atlas_core")
+}
+
+model Organization {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId    String             @map("workspace_id") @db.Uuid
+  slug           String
+  name           String
+  displayName    String?            @map("display_name")
+  legalName      String?            @map("legal_name")
+  status         OrganizationStatus @default(PROVISIONING)
+  isolationTier  IsolationTier      @default(SHARED_RLS) @map("isolation_tier")
+  timezone       String             @default("UTC")
+  locale         String             @default("en-US")
+  currencyCode   String             @default("USD") @map("currency_code") @db.Char(3)
+  dataRegion     String             @default("us-east-1") @map("data_region")
+  settings       Json               @default("{}")
+  metadata       Json               @default("{}")
+  provisionedAt  DateTime?          @map("provisioned_at") @db.Timestamptz(6)
+  suspendedAt    DateTime?          @map("suspended_at") @db.Timestamptz(6)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?            @map("created_by_id") @db.Uuid
+  updatedById    String?            @map("updated_by_id") @db.Uuid
+  version        Int                @default(1)
+
+  workspace         Workspace            @relation(fields: [workspaceId], references: [id])
+  teams             Team[]
+  members           OrganizationMember[]
+  teamMembers       TeamMember[]
+  invitations       Invitation[]
+  roles             Role[]
+  rolePermissions   RolePermission[]
+  roleAssignments   RoleAssignment[]
+  resourceGrants    ResourceGrant[]
+  policies          Policy[]
+  policyBindings    PolicyBinding[]
+  ssoConnections    SsoConnection[]
+  apiKeys              ApiKey[]
+  sessions             Session[]
+  workflowDefinitions     WorkflowDefinition[]
+  workflowInstances       WorkflowInstance[]
+  workflowSteps           WorkflowStep[]
+  workflowApprovals       WorkflowApproval[]
+  automationRules         AutomationRule[]
+  automationTriggers      AutomationTrigger[]
+  automationActions       AutomationAction[]
+  automationExecutionLogs AutomationExecutionLog[]
+  agentDefinitions        AgentDefinition[]
+  agentTools              AgentTool[]
+  agentRuns               AgentRun[]
+  conversationSessions    ConversationSession[]
+  conversationMessages    ConversationMessage[]
+  memoryChunks            MemoryChunk[]
+  knowledgeDocuments      KnowledgeDocument[]
+  knowledgeChunks         KnowledgeChunk[]
+  crmAccounts             CrmAccount[]
+  crmContacts             CrmContact[]
+  pipelineStages          PipelineStage[]
+  deals                   Deal[]
+  projects                Project[]
+  projectTasks            ProjectTask[]
+  chartOfAccounts         ChartOfAccount[]
+  journalEntries          JournalEntry[]
+  journalLines            JournalLine[]
+
+  @@unique([workspaceId, slug], map: "uq_organizations_workspace_slug_active")
+  @@index([workspaceId], map: "idx_organizations_workspace_id")
+  @@index([status], map: "idx_organizations_status")
+  @@index([dataRegion], map: "idx_organizations_data_region")
+  @@map("organizations")
+  @@schema("atlas_core")
+}
+
+model Team {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  parentTeamId   String?   @map("parent_team_id") @db.Uuid
+  slug           String
+  name           String
+  description    String?
+  settings       Json      @default("{}")
+  metadata       Json      @default("{}")
+  isDefault      Boolean   @default(false) @map("is_default")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?   @map("created_by_id") @db.Uuid
+  updatedById    String?   @map("updated_by_id") @db.Uuid
+  version        Int       @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  parentTeam   Team?        @relation("TeamHierarchy", fields: [parentTeamId], references: [id])
+  childTeams   Team[]       @relation("TeamHierarchy")
+  members      TeamMember[]
+  invitations  Invitation[]
+
+  @@unique([organizationId, slug], map: "uq_teams_org_slug_active")
+  @@unique([id, organizationId], map: "uq_teams_id_organization")
+  @@index([organizationId], map: "idx_teams_organization_id")
+  @@index([parentTeamId], map: "idx_teams_parent_team_id")
+  @@map("teams")
+  @@schema("atlas_core")
+}
+
+model WorkspaceMember {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String           @map("workspace_id") @db.Uuid
+  userId      String           @map("user_id") @db.Uuid
+  status      MembershipStatus @default(ACTIVE)
+  isAdmin     Boolean          @default(false) @map("is_admin")
+  joinedAt    DateTime         @default(now()) @map("joined_at") @db.Timestamptz(6)
+  removedAt   DateTime?        @map("removed_at") @db.Timestamptz(6)
+  metadata    Json             @default("{}")
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdById String?          @map("created_by_id") @db.Uuid
+  updatedById String?          @map("updated_by_id") @db.Uuid
+  version     Int              @default(1)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([workspaceId, userId], map: "uq_workspace_members_active")
+  @@index([userId], map: "idx_workspace_members_user_id")
+  @@index([workspaceId], map: "idx_workspace_members_workspace_id")
+  @@map("workspace_members")
+  @@schema("atlas_core")
+}
+
+model OrganizationMember {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  status         MembershipStatus @default(ACTIVE)
+  title          String?
+  department     String?
+  isOwner        Boolean          @default(false) @map("is_owner")
+  isBillingAdmin Boolean          @default(false) @map("is_billing_admin")
+  joinedAt       DateTime         @default(now()) @map("joined_at") @db.Timestamptz(6)
+  removedAt      DateTime?        @map("removed_at") @db.Timestamptz(6)
+  lastActiveAt   DateTime?        @map("last_active_at") @db.Timestamptz(6)
+  metadata       Json             @default("{}")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?          @map("created_by_id") @db.Uuid
+  updatedById    String?          @map("updated_by_id") @db.Uuid
+  version        Int              @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId], map: "uq_organization_members_active")
+  @@index([userId], map: "idx_organization_members_user_id")
+  @@index([organizationId], map: "idx_organization_members_organization_id")
+  @@map("organization_members")
+  @@schema("atlas_core")
+}
+
+model TeamMember {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  teamId         String         @map("team_id") @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  role           TeamMemberRole @default(MEMBER)
+  joinedAt       DateTime       @default(now()) @map("joined_at") @db.Timestamptz(6)
+  metadata       Json           @default("{}")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?        @map("created_by_id") @db.Uuid
+  updatedById    String?        @map("updated_by_id") @db.Uuid
+  version        Int            @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  team         Team         @relation(fields: [teamId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([teamId, userId], map: "uq_team_members_active")
+  @@index([organizationId], map: "idx_team_members_organization_id")
+  @@index([userId], map: "idx_team_members_user_id")
+  @@index([teamId], map: "idx_team_members_team_id")
+  @@map("team_members")
+  @@schema("atlas_core")
+}
+
+model Invitation {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  teamId         String?          @map("team_id") @db.Uuid
+  email          String           @db.Citext
+  invitedUserId  String?          @map("invited_user_id") @db.Uuid
+  invitedById    String           @map("invited_by_id") @db.Uuid
+  status         InvitationStatus @default(PENDING)
+  roleId         String?          @map("role_id") @db.Uuid
+  tokenHash      String           @map("token_hash")
+  message        String?
+  expiresAt      DateTime         @default(dbgenerated("now() + interval '7 days'")) @map("expires_at") @db.Timestamptz(6)
+  acceptedAt     DateTime?        @map("accepted_at") @db.Timestamptz(6)
+  declinedAt     DateTime?        @map("declined_at") @db.Timestamptz(6)
+  revokedAt      DateTime?        @map("revoked_at") @db.Timestamptz(6)
+  metadata       Json             @default("{}")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?          @map("created_by_id") @db.Uuid
+  updatedById    String?          @map("updated_by_id") @db.Uuid
+  version        Int              @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  team         Team?        @relation(fields: [teamId], references: [id])
+  invitedUser  User?        @relation("InvitationRecipient", fields: [invitedUserId], references: [id])
+  invitedBy    User         @relation("InvitationSender", fields: [invitedById], references: [id])
+  role         Role?        @relation(fields: [roleId], references: [id])
+
+  @@index([organizationId], map: "idx_invitations_organization_id")
+  @@index([email], map: "idx_invitations_email")
+  @@index([tokenHash], map: "idx_invitations_token_hash")
+  @@map("invitations")
+  @@schema("atlas_core")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// IDENTITY & AUTHENTICATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model User {
+  id                  String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email               String     @unique @db.Citext
+  emailVerified       Boolean    @default(false) @map("email_verified")
+  emailVerifiedAt     DateTime?  @map("email_verified_at") @db.Timestamptz(6)
+  passwordHash        String?    @map("password_hash")
+  type                UserType   @default(HUMAN)
+  status              UserStatus @default(PENDING_VERIFICATION)
+  displayName         String?    @map("display_name")
+  avatarUrl           String?    @map("avatar_url")
+  locale              String     @default("en-US")
+  timezone            String     @default("UTC")
+  lastLoginAt         DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  lastLoginIp         String?    @map("last_login_ip")
+  failedLoginAttempts Int        @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime?  @map("locked_until") @db.Timestamptz(6)
+  passwordChangedAt   DateTime?  @map("password_changed_at") @db.Timestamptz(6)
+  metadata            Json       @default("{}")
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt           DateTime?  @map("deleted_at") @db.Timestamptz(6)
+  createdById         String?    @map("created_by_id") @db.Uuid
+  updatedById         String?    @map("updated_by_id") @db.Uuid
+  version             Int        @default(1)
+
+  profile              UserProfile?
+  credentials          UserCredential[]
+  sessions             Session[]
+  refreshTokens        RefreshToken[]
+  mfaDevices           MfaDevice[]
+  passwordResetTokens  PasswordResetToken[]
+  ownedWorkspaces      Workspace[]          @relation("WorkspaceOwner")
+  workspaceMemberships WorkspaceMember[]
+  organizationMemberships OrganizationMember[]
+  teamMemberships      TeamMember[]
+  invitationsReceived  Invitation[]         @relation("InvitationRecipient")
+  invitationsSent      Invitation[]         @relation("InvitationSender")
+  apiKeys              ApiKey[]
+  assignedProjectTasks ProjectTask[]        @relation("ProjectTaskAssignee")
+  postedJournalEntries JournalEntry[]       @relation("JournalEntryPostedBy")
+  conversationSessions ConversationSession[]
+
+  @@index([status], map: "idx_users_status")
+  @@index([type], map: "idx_users_type")
+  @@map("users")
+  @@schema("atlas_core")
+}
+
+model UserProfile {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String    @unique @map("user_id") @db.Uuid
+  firstName            String?   @map("first_name")
+  lastName             String?   @map("last_name")
+  phone                String?
+  jobTitle             String?   @map("job_title")
+  company              String?
+  bio                  String?
+  avatarUrl            String?   @map("avatar_url")
+  preferences          Json      @default("{}")
+  notificationSettings Json      @default("{\"email\": true, \"push\": true, \"in_app\": true}") @map("notification_settings")
+  metadata             Json      @default("{}")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt            DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdById          String?   @map("created_by_id") @db.Uuid
+  updatedById          String?   @map("updated_by_id") @db.Uuid
+  version              Int       @default(1)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("user_profiles")
+  @@schema("atlas_core")
+}
+
+model UserCredential {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  credentialType CredentialType @map("credential_type")
+  providerId     String?        @map("provider_id")
+  providerEmail  String?        @map("provider_email") @db.Citext
+  credentialData Json           @default("{}") @map("credential_data")
+  isPrimary      Boolean        @default(false) @map("is_primary")
+  lastUsedAt     DateTime?      @map("last_used_at") @db.Timestamptz(6)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  version        Int            @default(1)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "idx_user_credentials_user_id")
+  @@map("user_credentials")
+  @@schema("atlas_core")
+}
+
+model Session {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  organizationId    String?   @map("organization_id") @db.Uuid
+  workspaceId       String?   @map("workspace_id") @db.Uuid
+  ipAddress         String?   @map("ip_address")
+  userAgent         String?   @map("user_agent")
+  deviceFingerprint String?   @map("device_fingerprint")
+  mfaVerified       Boolean   @default(false) @map("mfa_verified")
+  mfaVerifiedAt     DateTime? @map("mfa_verified_at") @db.Timestamptz(6)
+  isRemembered      Boolean   @default(false) @map("is_remembered")
+  expiresAt         DateTime  @map("expires_at") @db.Timestamptz(6)
+  lastActivityAt    DateTime  @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  revoked           Boolean   @default(false)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedReason     String?   @map("revoked_reason")
+  metadata          Json      @default("{}")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version           Int       @default(1)
+
+  user          User           @relation(fields: [userId], references: [id])
+  organization  Organization?  @relation(fields: [organizationId], references: [id])
+  workspace     Workspace?     @relation(fields: [workspaceId], references: [id])
+  refreshTokens RefreshToken[]
+
+  @@index([userId], map: "idx_sessions_user_id")
+  @@index([organizationId], map: "idx_sessions_organization_id")
+  @@index([expiresAt], map: "idx_sessions_expires_at")
+  @@map("sessions")
+  @@schema("atlas_core")
+}
+
+model RefreshToken {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId     String    @map("session_id") @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  tokenHash     String    @unique @map("token_hash")
+  familyId      String    @default(dbgenerated("gen_random_uuid()")) @map("family_id") @db.Uuid
+  parentTokenId String?   @map("parent_token_id") @db.Uuid
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(6)
+  issuedAt      DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  usedAt        DateTime? @map("used_at") @db.Timestamptz(6)
+  revoked       Boolean   @default(false)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedReason String?   @map("revoked_reason")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  session     Session        @relation(fields: [sessionId], references: [id])
+  user        User           @relation(fields: [userId], references: [id])
+  parentToken RefreshToken?  @relation("TokenFamily", fields: [parentTokenId], references: [id])
+  childTokens RefreshToken[] @relation("TokenFamily")
+
+  @@index([sessionId], map: "idx_refresh_tokens_session_id")
+  @@index([familyId], map: "idx_refresh_tokens_family_id")
+  @@index([userId], map: "idx_refresh_tokens_user_id")
+  @@map("refresh_tokens")
+  @@schema("atlas_core")
+}
+
+model MfaDevice {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String        @map("user_id") @db.Uuid
+  deviceType      MfaDeviceType @map("device_type")
+  name            String
+  credentialId    String?       @map("credential_id")
+  secretEncrypted String?       @map("secret_encrypted")
+  phoneNumber     String?       @map("phone_number")
+  counter         BigInt        @default(0)
+  isPrimary       Boolean       @default(false) @map("is_primary")
+  isVerified      Boolean       @default(false) @map("is_verified")
+  verifiedAt      DateTime?     @map("verified_at") @db.Timestamptz(6)
+  lastUsedAt      DateTime?     @map("last_used_at") @db.Timestamptz(6)
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  version         Int           @default(1)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "idx_mfa_devices_user_id")
+  @@map("mfa_devices")
+  @@schema("atlas_core")
+}
+
+model SsoConnection {
+  id                   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String      @map("organization_id") @db.Uuid
+  protocol             SsoProtocol
+  name                 String
+  idpEntityId          String      @map("idp_entity_id")
+  idpSsoUrl            String      @map("idp_sso_url")
+  idpCertificate       String?     @map("idp_certificate")
+  spEntityId           String      @map("sp_entity_id")
+  acsUrl               String      @map("acs_url")
+  oidcIssuer           String?     @map("oidc_issuer")
+  oidcClientId         String?     @map("oidc_client_id")
+  oidcClientSecretEnc  String?     @map("oidc_client_secret_enc")
+  attributeMapping     Json        @default("{\"email\": \"email\", \"first_name\": \"given_name\", \"last_name\": \"family_name\", \"groups\": \"groups\"}") @map("attribute_mapping")
+  jitProvisioning      Boolean     @default(true) @map("jit_provisioning")
+  defaultRoleId        String?     @map("default_role_id") @db.Uuid
+  mfaBypass            Boolean     @default(false) @map("mfa_bypass")
+  isActive             Boolean     @default(true) @map("is_active")
+  metadata             Json        @default("{}")
+  createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt            DateTime?   @map("deleted_at") @db.Timestamptz(6)
+  createdById          String?     @map("created_by_id") @db.Uuid
+  updatedById          String?     @map("updated_by_id") @db.Uuid
+  version              Int         @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, idpEntityId], map: "uq_sso_connections_org_idp")
+  @@index([organizationId], map: "idx_sso_connections_organization_id")
+  @@map("sso_connections")
+  @@schema("atlas_core")
+}
+
+model ApiKey {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  name           String
+  description    String?
+  keyPrefix      String       @unique @map("key_prefix")
+  keyHash        String       @map("key_hash")
+  scopes         String[]
+  status         ApiKeyStatus @default(ACTIVE)
+  expiresAt      DateTime?    @map("expires_at") @db.Timestamptz(6)
+  lastUsedAt     DateTime?    @map("last_used_at") @db.Timestamptz(6)
+  lastUsedIp     String?      @map("last_used_ip")
+  rateLimitTier  String       @default("standard") @map("rate_limit_tier")
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?      @map("created_by_id") @db.Uuid
+  updatedById    String?      @map("updated_by_id") @db.Uuid
+  version        Int          @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId], map: "idx_api_keys_organization_id")
+  @@index([userId], map: "idx_api_keys_user_id")
+  @@index([keyHash], map: "idx_api_keys_hash")
+  @@map("api_keys")
+  @@schema("atlas_core")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @default(dbgenerated("now() + interval '1 hour'")) @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  ipAddress String?   @map("ip_address")
+  userAgent String?   @map("user_agent")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "idx_password_reset_user_id")
+  @@map("password_reset_tokens")
+  @@schema("atlas_core")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTHORIZATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Permission {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code            String   @unique
+  module          String
+  resource        String
+  action          String
+  description     String?
+  isSystem        Boolean  @default(true) @map("is_system")
+  isDeprecated    Boolean  @default(false) @map("is_deprecated")
+  deprecatedAt    DateTime? @map("deprecated_at") @db.Timestamptz(6)
+  replacementCode String?  @map("replacement_code")
+  metadata        Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  rolePermissions RolePermission[]
+
+  @@index([module], map: "idx_permissions_module")
+  @@index([module, resource], map: "idx_permissions_resource")
+  @@map("permissions")
+  @@schema("atlas_core")
+}
+
+model Role {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  slug           String
+  name           String
+  description    String?
+  scopeType      ScopeType @default(ORGANIZATION) @map("scope_type")
+  isSystem       Boolean   @default(false) @map("is_system")
+  isDefault      Boolean   @default(false) @map("is_default")
+  priority       Int       @default(0)
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?   @map("created_by_id") @db.Uuid
+  updatedById    String?   @map("updated_by_id") @db.Uuid
+  version        Int       @default(1)
+
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  permissions     RolePermission[]
+  assignments     RoleAssignment[]
+  invitations     Invitation[]
+
+  @@unique([organizationId, slug], map: "uq_roles_org_slug_active")
+  @@unique([id, organizationId], map: "uq_roles_id_organization")
+  @@index([organizationId], map: "idx_roles_organization_id")
+  @@map("roles")
+  @@schema("atlas_core")
+}
+
+model RolePermission {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  roleId         String           @map("role_id") @db.Uuid
+  permissionId   String           @map("permission_id") @db.Uuid
+  effect         PermissionEffect @default(ALLOW)
+  conditions     Json?
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById    String?          @map("created_by_id") @db.Uuid
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  role         Role         @relation(fields: [roleId], references: [id])
+  permission   Permission   @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId], map: "uq_role_permissions_natural")
+  @@index([organizationId], map: "idx_role_permissions_organization_id")
+  @@index([roleId], map: "idx_role_permissions_role_id")
+  @@map("role_permissions")
+  @@schema("atlas_core")
+}
+
+model RoleAssignment {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  roleId         String        @map("role_id") @db.Uuid
+  principalType  PrincipalType @map("principal_type")
+  principalId    String        @map("principal_id") @db.Uuid
+  scopeType      ScopeType     @default(ORGANIZATION) @map("scope_type")
+  scopeId        String?       @map("scope_id") @db.Uuid
+  grantedById    String?       @map("granted_by_id") @db.Uuid
+  grantedAt      DateTime      @default(now()) @map("granted_at") @db.Timestamptz(6)
+  expiresAt      DateTime?     @map("expires_at") @db.Timestamptz(6)
+  revokedAt      DateTime?     @map("revoked_at") @db.Timestamptz(6)
+  revokedById    String?       @map("revoked_by_id") @db.Uuid
+  revokeReason   String?       @map("revoke_reason")
+  isActive       Boolean       @default(true) @map("is_active")
+  metadata       Json          @default("{}")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  version        Int           @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  role         Role         @relation(fields: [roleId], references: [id])
+
+  @@index([organizationId], map: "idx_role_assignments_organization_id")
+  @@index([principalType, principalId], map: "idx_role_assignments_principal")
+  @@index([scopeType, scopeId], map: "idx_role_assignments_scope")
+  @@index([roleId], map: "idx_role_assignments_role_id")
+  @@map("role_assignments")
+  @@schema("atlas_core")
+}
+
+model ResourceGrant {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  resourceType   String           @map("resource_type")
+  resourceId     String           @map("resource_id") @db.Uuid
+  principalType  PrincipalType    @map("principal_type")
+  principalId    String           @map("principal_id") @db.Uuid
+  permission     String
+  effect         PermissionEffect @default(ALLOW)
+  grantedById    String?          @map("granted_by_id") @db.Uuid
+  grantedAt      DateTime         @default(now()) @map("granted_at") @db.Timestamptz(6)
+  expiresAt      DateTime?        @map("expires_at") @db.Timestamptz(6)
+  revokedAt      DateTime?        @map("revoked_at") @db.Timestamptz(6)
+  isActive       Boolean          @default(true) @map("is_active")
+  metadata       Json             @default("{}")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  version        Int              @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId], map: "idx_resource_grants_organization_id")
+  @@index([organizationId, resourceType, resourceId], map: "idx_resource_grants_resource")
+  @@index([principalType, principalId], map: "idx_resource_grants_principal")
+  @@map("resource_grants")
+  @@schema("atlas_core")
+}
+
+model Policy {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  effect         PolicyEffect @default(DENY)
+  priority       Int          @default(0)
+  conditions     Json         @default("{}")
+  regoSource     String?      @map("rego_source")
+  regoVersion    String       @default("v1") @map("rego_version")
+  isSystem       Boolean      @default(false) @map("is_system")
+  isActive       Boolean      @default(true) @map("is_active")
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?      @map("created_by_id") @db.Uuid
+  updatedById    String?      @map("updated_by_id") @db.Uuid
+  version        Int          @default(1)
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  bindings     PolicyBinding[]
+
+  @@unique([organizationId, name], map: "uq_policies_org_name_active")
+  @@index([organizationId], map: "idx_policies_organization_id")
+  @@map("policies")
+  @@schema("atlas_core")
+}
+
+model PolicyBinding {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  policyId       String         @map("policy_id") @db.Uuid
+  bindType       PolicyBindType @map("bind_type")
+  bindId         String?        @map("bind_id") @db.Uuid
+  isActive       Boolean        @default(true) @map("is_active")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById    String?        @map("created_by_id") @db.Uuid
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  policy       Policy       @relation(fields: [policyId], references: [id])
+
+  @@index([organizationId], map: "idx_policy_bindings_organization_id")
+  @@index([policyId], map: "idx_policy_bindings_policy_id")
+  @@index([bindType, bindId], map: "idx_policy_bindings_bind")
+  @@map("policy_bindings")
+  @@schema("atlas_core")
+}
+
+// Notifications bounded context — multi-channel delivery, templates, preferences, digests
+// Schema: notifications
+// See: docs/database/17-notifications.md
+
+enum NotificationChannelType {
+  email
+  push
+  sms
+  in_app
+  slack
+  teams
+  webhook
+
+  @@schema("notifications")
+}
+
+enum NotificationTemplateStatus {
+  draft
+  active
+  deprecated
+
+  @@schema("notifications")
+}
+
+enum DigestMode {
+  instant
+  hourly
+  daily
+  weekly
+
+  @@schema("notifications")
+}
+
+enum NotificationCategory {
+  transactional
+  operational
+  digest
+  alert
+  marketing
+
+  @@schema("notifications")
+}
+
+enum NotificationStatus {
+  pending
+  processing
+  delivered
+  partial
+  failed
+  suppressed
+  expired
+
+  @@schema("notifications")
+}
+
+enum NotificationActorType {
+  user
+  system
+  api_key
+  agent
+  workflow
+
+  @@schema("notifications")
+}
+
+enum NotificationDeliveryStatus {
+  pending
+  queued
+  sent
+  delivered
+  failed
+  suppressed
+  bounced
+
+  @@schema("notifications")
+}
+
+enum DigestFrequency {
+  hourly
+  daily
+  weekly
+
+  @@schema("notifications")
+}
+
+model NotificationChannel {
+  id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                String                  @unique @db.Citext
+  name                String
+  description         String?
+  channelType         NotificationChannelType @map("channel_type")
+  provider            String
+  defaultPriority     Int                     @default(3) @map("default_priority") @db.SmallInt
+  maxRetries          Int                     @default(5) @map("max_retries") @db.SmallInt
+  retryBackoffSeconds Int                     @default(60) @map("retry_backoff_seconds")
+  rateLimitPerMinute  Int?                    @map("rate_limit_per_minute")
+  configSchema        Json                    @default("{}") @map("config_schema")
+  isActive            Boolean                 @default(true) @map("is_active")
+  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  templates    NotificationTemplate[]
+  preferences  NotificationPreference[]
+  deliveries   NotificationDelivery[]
+
+  @@index([channelType], map: "idx_notification_channels_type")
+  @@map("notification_channels")
+  @@schema("notifications")
+}
+
+model NotificationTemplate {
+  id                    String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  definitionId          String                     @map("definition_id")
+  notificationChannelId String                     @map("notification_channel_id") @db.Uuid
+  locale                String                     @default("en-US")
+  version               Int
+  subjectTemplate       String?                    @map("subject_template")
+  bodyTemplate          String                     @map("body_template")
+  mjmlSource            String?                    @map("mjml_source")
+  plainTextTemplate     String?                    @map("plain_text_template")
+  variablesSchema       Json                       @default("{}") @map("variables_schema")
+  status                NotificationTemplateStatus @default(draft)
+  activatedAt           DateTime?                  @map("activated_at") @db.Timestamptz(6)
+  deprecatedAt          DateTime?                  @map("deprecated_at") @db.Timestamptz(6)
+  createdAt             DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy             String?                    @map("created_by") @db.Uuid
+  updatedBy             String?                    @map("updated_by") @db.Uuid
+
+  notificationChannel NotificationChannel  @relation(fields: [notificationChannelId], references: [id])
+  deliveries          NotificationDelivery[]
+
+  @@unique([definitionId, notificationChannelId, locale, version], map: "uq_notification_templates_def_channel_locale_version")
+  @@index([definitionId, status], map: "idx_notification_templates_definition")
+  @@map("notification_templates")
+  @@schema("notifications")
+}
+
+model NotificationPreference {
+  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String              @map("tenant_id") @db.Uuid
+  userId                String              @map("user_id") @db.Uuid
+  definitionId          String              @map("definition_id")
+  notificationChannelId String              @map("notification_channel_id") @db.Uuid
+  enabled               Boolean             @default(true)
+  digestMode            DigestMode?         @map("digest_mode")
+  quietHoursOverride    Json?               @map("quiet_hours_override")
+  metadata              Json                @default("{}")
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version               Int                 @default(1)
+
+  notificationChannel NotificationChannel @relation(fields: [notificationChannelId], references: [id])
+
+  @@unique([tenantId, userId, definitionId, notificationChannelId], map: "uq_notification_preferences_user_def_channel")
+  @@index([tenantId, userId], map: "idx_notification_preferences_user")
+  @@index([tenantId, definitionId], map: "idx_notification_preferences_definition")
+  @@map("notification_preferences")
+  @@schema("notifications")
+}
+
+model Notification {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String                @map("tenant_id") @db.Uuid
+  definitionId    String                @map("definition_id")
+  category        NotificationCategory
+  priority        Int                   @default(3) @db.SmallInt
+  recipientUserId String                @map("recipient_user_id") @db.Uuid
+  actorUserId     String?               @map("actor_user_id") @db.Uuid
+  actorType       NotificationActorType @default(user) @map("actor_type")
+  title           String
+  body            String?
+  actionUrl       String?               @map("action_url")
+  entityType      String?               @map("entity_type")
+  entityId        String?               @map("entity_id") @db.Uuid
+  payload         Json                  @default("{}")
+  locale          String                @default("en-US")
+  status          NotificationStatus    @default(pending)
+  idempotencyKey  String                @map("idempotency_key")
+  scheduledFor    DateTime?             @map("scheduled_for") @db.Timestamptz(6)
+  expiresAt       DateTime?             @map("expires_at") @db.Timestamptz(6)
+  readAt          DateTime?             @map("read_at") @db.Timestamptz(6)
+  dismissedAt     DateTime?             @map("dismissed_at") @db.Timestamptz(6)
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  deliveries NotificationDelivery[]
+
+  @@unique([tenantId, idempotencyKey], map: "uq_notifications_idempotency")
+  @@index([tenantId, recipientUserId, createdAt(sort: Desc)], map: "idx_notifications_recipient_inbox")
+  @@index([tenantId, entityType, entityId], map: "idx_notifications_entity")
+  @@index([scheduledFor], map: "idx_notifications_scheduled")
+  @@map("notifications")
+  @@schema("notifications")
+}
+
+model NotificationDelivery {
+  id                     String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String                     @map("tenant_id") @db.Uuid
+  notificationId         String                     @map("notification_id") @db.Uuid
+  notificationChannelId  String                     @map("notification_channel_id") @db.Uuid
+  notificationTemplateId String?                    @map("notification_template_id") @db.Uuid
+  idempotencyKey         String                     @unique @map("idempotency_key")
+  status                 NotificationDeliveryStatus @default(pending)
+  attemptCount           Int                        @default(0) @map("attempt_count") @db.SmallInt
+  providerMessageId      String?                    @map("provider_message_id")
+  providerResponse       Json?                      @map("provider_response")
+  renderedSnapshot       Json?                      @map("rendered_snapshot")
+  errorCode              String?                    @map("error_code")
+  errorMessage           String?                    @map("error_message")
+  sentAt                 DateTime?                  @map("sent_at") @db.Timestamptz(6)
+  deliveredAt            DateTime?                  @map("delivered_at") @db.Timestamptz(6)
+  openedAt               DateTime?                  @map("opened_at") @db.Timestamptz(6)
+  clickedAt              DateTime?                  @map("clicked_at") @db.Timestamptz(6)
+  failedAt               DateTime?                  @map("failed_at") @db.Timestamptz(6)
+  nextRetryAt            DateTime?                  @map("next_retry_at") @db.Timestamptz(6)
+  createdAt              DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  notification         Notification          @relation(fields: [notificationId], references: [id])
+  notificationChannel  NotificationChannel   @relation(fields: [notificationChannelId], references: [id])
+  notificationTemplate NotificationTemplate? @relation(fields: [notificationTemplateId], references: [id])
+
+  @@index([notificationId], map: "idx_notification_deliveries_notification")
+  @@index([tenantId, status, createdAt(sort: Desc)], map: "idx_notification_deliveries_tenant_status")
+  @@index([nextRetryAt], map: "idx_notification_deliveries_retry")
+  @@map("notification_deliveries")
+  @@schema("notifications")
+}
+
+model DigestSubscription {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String          @map("tenant_id") @db.Uuid
+  userId            String          @map("user_id") @db.Uuid
+  definitionId      String          @map("definition_id")
+  digestFrequency   DigestFrequency @map("digest_frequency")
+  timezone          String          @default("UTC")
+  deliveryHour      Int             @default(8) @map("delivery_hour") @db.SmallInt
+  deliveryDayOfWeek Int?            @map("delivery_day_of_week") @db.SmallInt
+  lastSentAt        DateTime?       @map("last_sent_at") @db.Timestamptz(6)
+  nextScheduledAt   DateTime        @map("next_scheduled_at") @db.Timestamptz(6)
+  pendingCount      Int             @default(0) @map("pending_count")
+  isActive          Boolean         @default(true) @map("is_active")
+  metadata          Json            @default("{}")
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, userId, definitionId], map: "uq_digest_subscriptions_user_def")
+  @@index([nextScheduledAt], map: "idx_digest_subscriptions_next_scheduled")
+  @@index([tenantId, userId], map: "idx_digest_subscriptions_user")
+  @@map("digest_subscriptions")
+  @@schema("notifications")
+}
+
+// Documents & Storage bounded context — file metadata, versions, permissions, attachments
+// Schema: storage
+// See: docs/database/18-documents-storage.md
+
+enum FileStatus {
+  pending
+  uploading
+  scanning
+  clean
+  infected
+  quarantined
+  rejected
+  deleted
+
+  @@schema("storage")
+}
+
+enum SensitivityClass {
+  public
+  standard
+  restricted
+  confidential
+
+  @@schema("storage")
+}
+
+enum FilePermissionGranteeType {
+  user
+  team
+  role
+  workspace
+
+  @@schema("storage")
+}
+
+enum FilePermissionLevel {
+  read
+  write
+  delete
+  share
+  admin
+
+  @@schema("storage")
+}
+
+enum PreviewType {
+  thumbnail_sm
+  thumbnail_md
+  thumbnail_lg
+  pdf_preview
+  video_poster
+
+  @@schema("storage")
+}
+
+enum PreviewStatus {
+  pending
+  processing
+  ready
+  failed
+  skipped
+
+  @@schema("storage")
+}
+
+enum AttachmentRole {
+  primary
+  supporting
+  signature
+  export
+  cover
+  inline
+
+  @@schema("storage")
+}
+
+model Folder {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  workspaceId    String?   @map("workspace_id") @db.Uuid
+  parentFolderId String?   @map("parent_folder_id") @db.Uuid
+  name           String
+  slug           String
+  path           String
+  depth          Int       @default(0) @db.SmallInt
+  description    String?
+  color          String?   @db.Char(7)
+  isSystem       Boolean   @default(false) @map("is_system")
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy      String    @map("created_by") @db.Uuid
+  updatedBy      String?   @map("updated_by") @db.Uuid
+  version        Int       @default(1)
+
+  parentFolder Folder?  @relation("FolderHierarchy", fields: [parentFolderId], references: [id])
+  childFolders Folder[] @relation("FolderHierarchy")
+  files        File[]
+
+  @@index([tenantId, workspaceId], map: "idx_folders_tenant_workspace")
+  @@index([parentFolderId], map: "idx_folders_parent")
+  @@map("folders")
+  @@schema("storage")
+}
+
+model File {
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String           @map("tenant_id") @db.Uuid
+  folderId             String?          @map("folder_id") @db.Uuid
+  name                 String
+  originalName         String           @map("original_name")
+  mimeType             String           @map("mime_type")
+  extension            String?
+  sizeBytes            BigInt           @map("size_bytes")
+  contentHash          Bytes            @map("content_hash")
+  bucket               String
+  objectKey            String           @map("object_key")
+  encryptionKeyId      String           @map("encryption_key_id")
+  status               FileStatus       @default(pending)
+  currentVersionNumber Int              @default(1) @map("current_version_number")
+  isStarred            Boolean          @default(false) @map("is_starred")
+  sensitivityClass     SensitivityClass @default(standard) @map("sensitivity_class")
+  legalHold            Boolean          @default(false) @map("legal_hold")
+  retentionUntil       DateTime?        @map("retention_until") @db.Timestamptz(6)
+  scannedAt            DateTime?        @map("scanned_at") @db.Timestamptz(6)
+  scanResult           String?          @map("scan_result")
+  metadata             Json             @default("{}")
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt            DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdBy            String           @map("created_by") @db.Uuid
+  updatedBy            String?            @map("updated_by") @db.Uuid
+  version              Int              @default(1)
+
+  folder       Folder?           @relation(fields: [folderId], references: [id])
+  versions     FileVersion[]
+  permissions  FilePermission[]
+  previews     FilePreview[]
+  attachments  FileAttachment[]
+
+  @@index([tenantId, folderId], map: "idx_files_tenant_folder")
+  @@index([tenantId, status], map: "idx_files_tenant_status")
+  @@index([retentionUntil], map: "idx_files_retention")
+  @@map("files")
+  @@schema("storage")
+}
+
+model FileVersion {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  fileId        String   @map("file_id") @db.Uuid
+  versionNumber Int      @map("version_number")
+  isLatest      Boolean  @default(false) @map("is_latest")
+  sizeBytes     BigInt   @map("size_bytes")
+  contentHash   Bytes    @map("content_hash")
+  bucket        String
+  objectKey     String   @map("object_key")
+  mimeType      String   @map("mime_type")
+  changeSummary String?  @map("change_summary")
+  createdBy     String   @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  file     File          @relation(fields: [fileId], references: [id])
+  previews FilePreview[]
+
+  @@unique([fileId, versionNumber], map: "uq_file_versions_file_version")
+  @@index([fileId, versionNumber(sort: Desc)], map: "idx_file_versions_file_id")
+  @@index([tenantId], map: "idx_file_versions_tenant_id")
+  @@map("file_versions")
+  @@schema("storage")
+}
+
+model FilePermission {
+  id          String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String                    @map("tenant_id") @db.Uuid
+  fileId      String                    @map("file_id") @db.Uuid
+  granteeType FilePermissionGranteeType @map("grantee_type")
+  granteeId   String                    @map("grantee_id") @db.Uuid
+  permission  FilePermissionLevel
+  grantedBy   String                    @map("granted_by") @db.Uuid
+  expiresAt   DateTime?                 @map("expires_at") @db.Timestamptz(6)
+  createdAt   DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?                 @map("deleted_at") @db.Timestamptz(6)
+
+  file File @relation(fields: [fileId], references: [id])
+
+  @@unique([fileId, granteeType, granteeId, permission], map: "uq_file_permissions_grantee")
+  @@index([fileId], map: "idx_file_permissions_file_id")
+  @@index([tenantId, granteeType, granteeId], map: "idx_file_permissions_grantee")
+  @@map("file_permissions")
+  @@schema("storage")
+}
+
+model StorageQuota {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @unique @map("tenant_id") @db.Uuid
+  maxStorageBytes      BigInt    @map("max_storage_bytes")
+  maxFileCount         BigInt    @map("max_file_count")
+  maxSingleUploadBytes BigInt    @default(524288000) @map("max_single_upload_bytes")
+  usedStorageBytes     BigInt    @default(0) @map("used_storage_bytes")
+  usedFileCount        BigInt    @default(0) @map("used_file_count")
+  warningThresholdPct  Int       @default(80) @map("warning_threshold_pct") @db.SmallInt
+  hardLimitEnforced    Boolean   @default(true) @map("hard_limit_enforced")
+  lastReconciledAt     DateTime? @map("last_reconciled_at") @db.Timestamptz(6)
+  metadata             Json      @default("{}")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("storage_quotas")
+  @@schema("storage")
+}
+
+model FilePreview {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String        @map("tenant_id") @db.Uuid
+  fileId        String        @map("file_id") @db.Uuid
+  fileVersionId String        @map("file_version_id") @db.Uuid
+  previewType   PreviewType   @map("preview_type")
+  mimeType      String        @map("mime_type")
+  width         Int?
+  height        Int?
+  sizeBytes     BigInt        @map("size_bytes")
+  bucket        String
+  objectKey     String        @map("object_key")
+  status        PreviewStatus @default(pending)
+  generatedAt   DateTime?     @map("generated_at") @db.Timestamptz(6)
+  errorMessage  String?       @map("error_message")
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  file        File        @relation(fields: [fileId], references: [id])
+  fileVersion FileVersion @relation(fields: [fileVersionId], references: [id])
+
+  @@unique([fileVersionId, previewType], map: "uq_file_previews_version_type")
+  @@index([fileId], map: "idx_file_previews_file_id")
+  @@index([createdAt], map: "idx_file_previews_pending")
+  @@map("file_previews")
+  @@schema("storage")
+}
+
+model FileAttachment {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String         @map("tenant_id") @db.Uuid
+  fileId         String         @map("file_id") @db.Uuid
+  entityType     String         @map("entity_type")
+  entityId       String         @map("entity_id") @db.Uuid
+  attachmentRole AttachmentRole @default(supporting) @map("attachment_role")
+  displayName    String?        @map("display_name")
+  displayOrder   Int            @default(0) @map("display_order")
+  isPrimary      Boolean        @default(false) @map("is_primary")
+  metadata       Json           @default("{}")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  createdBy      String         @map("created_by") @db.Uuid
+  updatedBy      String?        @map("updated_by") @db.Uuid
+
+  file File @relation(fields: [fileId], references: [id])
+
+  @@unique([tenantId, fileId, entityType, entityId, attachmentRole], map: "uq_file_attachments_entity_file_role")
+  @@index([tenantId, entityType, entityId], map: "idx_file_attachments_entity")
+  @@index([fileId], map: "idx_file_attachments_file_id")
+  @@map("file_attachments")
+  @@schema("storage")
+}
+
+// Audit & Events bounded context — audit log, domain events, outbox, temporal versions
+// Schema: atlas_audit
+// See: docs/database/20-audit-events.md
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  RESTORE
+  ACCESS
+  EXPORT
+  PERMISSION_CHANGE
+
+  @@schema("atlas_audit")
+}
+
+enum AuditActorType {
+  user
+  system
+  api_key
+  agent
+  workflow
+  platform_admin
+
+  @@schema("atlas_audit")
+}
+
+enum DeadLetterSource {
+  event_outbox
+  domain_events
+  webhook_delivery
+
+  @@schema("atlas_audit")
+}
+
+enum DeadLetterResolution {
+  replayed
+  discarded
+  manual_fix
+
+  @@schema("atlas_audit")
+}
+
+model AuditLogEntry {
+  id             BigInt         @id @default(autoincrement())
+  tenantId       String?        @map("tenant_id") @db.Uuid
+  entityType     String         @map("entity_type")
+  entityId       String         @map("entity_id") @db.Uuid
+  action         AuditAction
+  actorId        String?        @map("actor_id") @db.Uuid
+  actorType      AuditActorType @default(user) @map("actor_type")
+  changes        Json?
+  previousState  Json?          @map("previous_state")
+  newState       Json?          @map("new_state")
+  metadata       Json           @default("{}")
+  correlationId  String?        @map("correlation_id")
+  requestId      String?        @map("request_id")
+  ipAddress      String?        @map("ip_address")
+  userAgent      String?        @map("user_agent")
+  occurredAt     DateTime       @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  @@index([tenantId, entityType, entityId, occurredAt(sort: Desc)], map: "idx_audit_log_entries_tenant_entity")
+  @@index([tenantId, actorId, occurredAt(sort: Desc)], map: "idx_audit_log_entries_actor")
+  @@index([correlationId], map: "idx_audit_log_entries_correlation")
+  @@index([occurredAt(sort: Desc)], map: "idx_audit_log_entries_occurred")
+  @@map("audit_log_entries")
+  @@schema("atlas_audit")
+}
+
+model DomainEvent {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String?        @map("tenant_id") @db.Uuid
+  eventType      String         @map("event_type")
+  eventVersion   Int            @default(1) @map("event_version")
+  aggregateType  String         @map("aggregate_type")
+  aggregateId    String         @map("aggregate_id") @db.Uuid
+  payload        Json
+  metadata       Json           @default("{}")
+  correlationId  String?        @map("correlation_id")
+  causationId    String?        @map("causation_id")
+  actorId        String?        @map("actor_id") @db.Uuid
+  actorType      AuditActorType @default(system) @map("actor_type")
+  occurredAt     DateTime       @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  publishedAt    DateTime       @default(now()) @map("published_at") @db.Timestamptz(6)
+  sequenceNumber BigInt         @map("sequence_number")
+
+  @@index([tenantId, aggregateType, aggregateId, occurredAt(sort: Desc)], map: "idx_domain_events_tenant_aggregate")
+  @@index([eventType, occurredAt(sort: Desc)], map: "idx_domain_events_type")
+  @@map("domain_events")
+  @@schema("atlas_audit")
+}
+
+model EventOutbox {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String?   @map("tenant_id") @db.Uuid
+  aggregateType   String    @map("aggregate_type")
+  aggregateId     String    @map("aggregate_id") @db.Uuid
+  eventType       String    @map("event_type")
+  eventVersion    Int       @default(1) @map("event_version")
+  payload         Json
+  metadata        Json      @default("{}")
+  correlationId   String?   @map("correlation_id")
+  causationId     String?   @map("causation_id")
+  priority        Int       @default(3) @db.SmallInt
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  publishedAt     DateTime? @map("published_at") @db.Timestamptz(6)
+  publishAttempts Int       @default(0) @map("publish_attempts")
+  lastAttemptAt   DateTime? @map("last_attempt_at") @db.Timestamptz(6)
+  lastError       String?   @map("last_error")
+  lockedBy        String?   @map("locked_by")
+  lockedAt        DateTime? @map("locked_at") @db.Timestamptz(6)
+
+  @@index([createdAt], map: "idx_event_outbox_unpublished")
+  @@index([priority, createdAt], map: "idx_event_outbox_priority_unpublished")
+  @@index([tenantId, aggregateType, aggregateId], map: "idx_event_outbox_tenant_aggregate")
+  @@map("event_outbox")
+  @@schema("atlas_audit")
+}
+
+model EventDeadLetter {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String?               @map("tenant_id") @db.Uuid
+  sourceTable      DeadLetterSource      @map("source_table")
+  sourceId         String                @map("source_id") @db.Uuid
+  eventType        String                @map("event_type")
+  payload          Json
+  metadata         Json                  @default("{}")
+  failureReason    String                @map("failure_reason")
+  failureCount     Int                   @default(1) @map("failure_count")
+  firstFailedAt    DateTime              @map("first_failed_at") @db.Timestamptz(6)
+  lastFailedAt     DateTime              @default(now()) @map("last_failed_at") @db.Timestamptz(6)
+  resolvedAt       DateTime?             @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy       String?               @map("resolved_by") @db.Uuid
+  resolutionAction DeadLetterResolution? @map("resolution_action")
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([lastFailedAt(sort: Desc)], map: "idx_event_dead_letter_unresolved")
+  @@index([tenantId, eventType], map: "idx_event_dead_letter_tenant")
+  @@map("event_dead_letter")
+  @@schema("atlas_audit")
+}
+
+model EntityVersion {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  entityType    String   @map("entity_type")
+  entityId      String   @map("entity_id") @db.Uuid
+  versionNumber Int      @map("version_number")
+  validFrom     DateTime @default(now()) @map("valid_from") @db.Timestamptz(6)
+  validTo       DateTime @default(dbgenerated("'infinity'::timestamptz")) @map("valid_to") @db.Timestamptz(6)
+  state         Json
+  changeReason  String?  @map("change_reason")
+  changedBy     String?  @map("changed_by") @db.Uuid
+  changedAt     DateTime @default(now()) @map("changed_at") @db.Timestamptz(6)
+  isCurrent     Boolean  @default(true) @map("is_current")
+
+  @@index([tenantId, entityType, entityId, validFrom(sort: Desc)], map: "idx_entity_versions_temporal")
+  @@index([tenantId, entityType, entityId, validFrom, validTo], map: "idx_entity_versions_as_of")
+  @@map("entity_versions")
+  @@schema("atlas_audit")
+}
+
+enum WorkflowDefinitionStatus {
+  draft
+  published
+  deprecated
+  archived
+
+  @@schema("automation")
+}
+
+enum WorkflowInstanceStatus {
+  running
+  waiting
+  completed
+  failed
+  cancelled
+  compensating
+  suspended
+
+  @@schema("automation")
+}
+
+enum WorkflowInitiatorType {
+  user
+  automation
+  agent
+  system
+  api
+
+  @@schema("automation")
+}
+
+enum WorkflowNodeType {
+  start_event
+  end_event
+  exclusive_gateway
+  parallel_gateway
+  inclusive_gateway
+  human_task
+  service_task
+  agent_task
+  timer_event
+  sub_workflow
+  compensation_handler
+
+  @@schema("automation")
+}
+
+enum WorkflowStepStatus {
+  pending
+  active
+  waiting
+  completed
+  failed
+  skipped
+  compensated
+
+  @@schema("automation")
+}
+
+enum WorkflowAssigneeType {
+  user
+  role
+  team
+  agent
+
+  @@schema("automation")
+}
+
+enum WorkflowApprovalType {
+  single
+  any_of
+  all_of
+  sequential
+
+  @@schema("automation")
+}
+
+enum WorkflowApprovalStatus {
+  pending
+  approved
+  rejected
+  expired
+  delegated
+  cancelled
+
+  @@schema("automation")
+}
+
+model WorkflowDefinition {
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId         String?                  @map("organization_id") @db.Uuid
+  name                   String
+  slug                   String
+  description            String?
+  definitionVersion      Int                      @default(1) @map("definition_version")
+  status                 WorkflowDefinitionStatus @default(draft)
+  category               String                   @default("general")
+  graphDefinition        Json                     @default("{}") @map("graph_definition")
+  slaPolicies            Json                     @default("{}") @map("sla_policies")
+  compensationHandlers   Json                     @default("{}") @map("compensation_handlers")
+  inputSchema            Json                     @default("{}") @map("input_schema")
+  outputSchema           Json                     @default("{}") @map("output_schema")
+  estimatedDurationHours Int?                     @map("estimated_duration_hours")
+  isTemplate             Boolean                  @default(false) @map("is_template")
+  publishedAt            DateTime?                @map("published_at") @db.Timestamptz(6)
+  deprecatedAt           DateTime?                @map("deprecated_at") @db.Timestamptz(6)
+  metadata               Json                     @default("{}")
+  createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy              String?                  @map("created_by") @db.Uuid
+  updatedBy              String?                  @map("updated_by") @db.Uuid
+  deletedAt              DateTime?                @map("deleted_at") @db.Timestamptz(6)
+  version                Int                      @default(1)
+
+  organization Organization?      @relation(fields: [organizationId], references: [id])
+  instances    WorkflowInstance[]
+
+  @@index([status, category], map: "idx_workflow_definitions_status")
+  @@map("workflow_definitions")
+  @@schema("automation")
+}
+
+model WorkflowInstance {
+  id                 String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String                 @map("organization_id") @db.Uuid
+  definitionId       String                 @map("definition_id") @db.Uuid
+  definitionVersion  Int                    @map("definition_version")
+  parentInstanceId   String?                @map("parent_instance_id") @db.Uuid
+  status             WorkflowInstanceStatus @default(running)
+  entityType         String?                @map("entity_type")
+  entityId           String?                @map("entity_id") @db.Uuid
+  correlationId      String?                @map("correlation_id")
+  initiatorType      WorkflowInitiatorType  @default(user) @map("initiator_type")
+  initiatorId        String?                @map("initiator_id") @db.Uuid
+  currentNodeId      String?                @map("current_node_id")
+  contextVariables   Json                   @default("{}") @map("context_variables")
+  inputPayload       Json                   @default("{}") @map("input_payload")
+  outputPayload      Json?                  @map("output_payload")
+  errorDetails       Json?                  @map("error_details")
+  startedAt          DateTime               @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt        DateTime?              @map("completed_at") @db.Timestamptz(6)
+  dueAt              DateTime?              @map("due_at") @db.Timestamptz(6)
+  slaBreachAt        DateTime?              @map("sla_breach_at") @db.Timestamptz(6)
+  tokenCount         Int                    @default(1) @map("token_count")
+  metadata           Json                   @default("{}")
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy          String?                @map("created_by") @db.Uuid
+  updatedBy          String?                @map("updated_by") @db.Uuid
+  deletedAt          DateTime?              @map("deleted_at") @db.Timestamptz(6)
+  version            Int                    @default(1)
+
+  organization   Organization        @relation(fields: [organizationId], references: [id])
+  definition     WorkflowDefinition  @relation(fields: [definitionId], references: [id])
+  parentInstance WorkflowInstance?   @relation("WorkflowInstanceParent", fields: [parentInstanceId], references: [id])
+  childInstances WorkflowInstance[]  @relation("WorkflowInstanceParent")
+  steps          WorkflowStep[]
+  approvals      WorkflowApproval[]
+
+  @@index([organizationId, status, startedAt(sort: Desc)], map: "idx_workflow_instances_org_status")
+  @@index([organizationId, entityType, entityId], map: "idx_workflow_instances_entity")
+  @@index([organizationId, correlationId], map: "idx_workflow_instances_correlation")
+  @@index([dueAt], map: "idx_workflow_instances_sla")
+  @@map("workflow_instances")
+  @@schema("automation")
+}
+
+model WorkflowStep {
+  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String                @map("organization_id") @db.Uuid
+  instanceId     String                @map("instance_id") @db.Uuid
+  nodeId         String                @map("node_id")
+  nodeType       WorkflowNodeType
+  stepName       String?               @map("step_name")
+  status         WorkflowStepStatus    @default(pending)
+  assigneeId     String?               @map("assignee_id") @db.Uuid
+  assigneeType   WorkflowAssigneeType? @map("assignee_type")
+  tokenId        String                @map("token_id")
+  inputData      Json                  @default("{}") @map("input_data")
+  outputData     Json?                 @map("output_data")
+  agentRunId     String?               @map("agent_run_id") @db.Uuid
+  errorMessage   String?               @map("error_message")
+  retryCount     Int                   @default(0) @map("retry_count")
+  startedAt      DateTime?             @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime?             @map("completed_at") @db.Timestamptz(6)
+  dueAt          DateTime?             @map("due_at") @db.Timestamptz(6)
+  metadata       Json                  @default("{}")
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy      String?               @map("created_by") @db.Uuid
+  updatedBy      String?               @map("updated_by") @db.Uuid
+  deletedAt      DateTime?             @map("deleted_at") @db.Timestamptz(6)
+  version        Int                   @default(1)
+
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  instance     WorkflowInstance   @relation(fields: [instanceId], references: [id])
+  approvals    WorkflowApproval[]
+
+  @@index([instanceId, status], map: "idx_workflow_steps_instance")
+  @@index([organizationId, assigneeId, status], map: "idx_workflow_steps_assignee")
+  @@index([dueAt], map: "idx_workflow_steps_due")
+  @@map("workflow_steps")
+  @@schema("automation")
+}
+
+model WorkflowApproval {
+  id               String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String                 @map("organization_id") @db.Uuid
+  instanceId       String                 @map("instance_id") @db.Uuid
+  stepId           String                 @map("step_id") @db.Uuid
+  approvalType     WorkflowApprovalType   @default(single) @map("approval_type")
+  status           WorkflowApprovalStatus @default(pending)
+  title            String
+  description      String?
+  assigneeIds      String[]               @default([]) @map("assignee_ids") @db.Uuid
+  approvedBy       String?                @map("approved_by") @db.Uuid
+  rejectedBy       String?                @map("rejected_by") @db.Uuid
+  formData         Json                   @default("{}") @map("form_data")
+  diffPreview      Json?                  @map("diff_preview")
+  requestedAt      DateTime               @default(now()) @map("requested_at") @db.Timestamptz(6)
+  expiresAt        DateTime?              @map("expires_at") @db.Timestamptz(6)
+  resolvedAt       DateTime?              @map("resolved_at") @db.Timestamptz(6)
+  resolutionNote   String?                @map("resolution_note")
+  escalationLevel  Int                    @default(0) @map("escalation_level")
+  metadata         Json                   @default("{}")
+  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy        String?                @map("created_by") @db.Uuid
+  updatedBy        String?                @map("updated_by") @db.Uuid
+  deletedAt        DateTime?              @map("deleted_at") @db.Timestamptz(6)
+  version          Int                    @default(1)
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  instance     WorkflowInstance   @relation(fields: [instanceId], references: [id])
+  step         WorkflowStep       @relation(fields: [stepId], references: [id])
+
+  @@index([organizationId, status, requestedAt], map: "idx_workflow_approvals_pending")
+  @@index([instanceId], map: "idx_workflow_approvals_instance")
+  @@map("workflow_approvals")
+  @@schema("automation")
+}
+enum AutomationRuleStatus {
+  draft
+  enabled
+  disabled
+  archived
+  @@schema("automation")
+}
+
+enum AutomationTriggerType {
+  event
+  schedule
+  webhook
+  manual
+  entity_change
+  @@schema("automation")
+}
+
+enum AutomationActionType {
+  send_notification
+  send_email
+  update_entity
+  create_entity
+  webhook_call
+  invoke_agent
+  start_workflow
+  tag_entity
+  delay
+  condition_branch
+  @@schema("automation")
+}
+
+enum ActionOnFailure {
+  stop
+  continue
+  retry
+  compensate
+  @@schema("automation")
+}
+
+enum RetryBackoffType {
+  fixed
+  exponential
+  linear
+  @@schema("automation")
+}
+
+enum AutomationExecutionStatus {
+  started
+  completed
+  failed
+  skipped
+  dry_run
+  @@schema("automation")
+}
+
+model AutomationRule {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String               @map("organization_id") @db.Uuid
+  name              String
+  description       String?
+  status            AutomationRuleStatus @default(draft)
+  ruleVersion       Int                  @default(1) @map("rule_version")
+  templateId        String?              @map("template_id")
+  ownerId           String?              @map("owner_id") @db.Uuid
+  maxExecutionsHour Int?                 @map("max_executions_hour")
+  maxExecutionsDay  Int?                 @map("max_executions_day")
+  concurrencyLimit  Int?                 @map("concurrency_limit")
+  retryMaxAttempts  Int?                 @map("retry_max_attempts")
+  retryBackoff      RetryBackoffType?    @default(exponential) @map("retry_backoff")
+  dryRunAvailable   Boolean              @default(true) @map("dry_run_available")
+  lastExecutedAt    DateTime?            @map("last_executed_at") @db.Timestamptz(6)
+  executionCount    BigInt               @default(0) @map("execution_count")
+  tags              String[]             @default([])
+  settings          Json                 @default("{}")
+  metadata          Json                 @default("{}")
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy         String?              @map("created_by") @db.Uuid
+  updatedBy         String?              @map("updated_by") @db.Uuid
+  deletedAt         DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  version           Int                  @default(1)
+
+  organization Organization             @relation(fields: [organizationId], references: [id])
+  triggers     AutomationTrigger[]
+  actions      AutomationAction[]
+  executions   AutomationExecutionLog[]
+
+  @@index([organizationId, status], map: "idx_automation_rules_status")
+  @@map("automation_rules")
+  @@schema("automation")
+}
+
+model AutomationTrigger {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String                @map("organization_id") @db.Uuid
+  ruleId           String                @map("rule_id") @db.Uuid
+  triggerOrder     Int                   @default(0) @map("trigger_order")
+  triggerType      AutomationTriggerType @map("trigger_type")
+  eventType        String?               @map("event_type")
+  scheduleCron     String?               @map("schedule_cron")
+  scheduleTimezone String?               @default("UTC") @map("schedule_timezone")
+  webhookPath      String?               @map("webhook_path")
+  filterExpression String?               @map("filter_expression")
+  filterJson       Json                  @default("{}") @map("filter_json")
+  isActive         Boolean               @default(true) @map("is_active")
+  metadata         Json                  @default("{}")
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy        String?               @map("created_by") @db.Uuid
+  updatedBy        String?               @map("updated_by") @db.Uuid
+  deletedAt        DateTime?             @map("deleted_at") @db.Timestamptz(6)
+  version          Int                   @default(1)
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  rule         AutomationRule @relation(fields: [ruleId], references: [id])
+
+  @@index([ruleId, triggerOrder], map: "idx_automation_triggers_rule")
+  @@map("automation_triggers")
+  @@schema("automation")
+}
+
+model AutomationAction {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String              @map("organization_id") @db.Uuid
+  ruleId              String              @map("rule_id") @db.Uuid
+  actionOrder         Int                 @map("action_order")
+  actionType          AutomationActionType @map("action_type")
+  name                String
+  config              Json                @default("{}")
+  conditionExpression String?             @map("condition_expression")
+  onFailure           ActionOnFailure     @default(stop) @map("on_failure")
+  timeoutSeconds      Int?                @map("timeout_seconds")
+  isActive            Boolean             @default(true) @map("is_active")
+  metadata            Json                @default("{}")
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy           String?             @map("created_by") @db.Uuid
+  updatedBy           String?             @map("updated_by") @db.Uuid
+  deletedAt           DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  version             Int                 @default(1)
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  rule         AutomationRule @relation(fields: [ruleId], references: [id])
+
+  @@index([ruleId, actionOrder], map: "idx_automation_actions_rule")
+  @@map("automation_actions")
+  @@schema("automation")
+}
+
+model AutomationExecutionLog {
+  id              String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String                    @map("organization_id") @db.Uuid
+  ruleId          String                    @map("rule_id") @db.Uuid
+  status          AutomationExecutionStatus @default(started)
+  triggerType     String?                   @map("trigger_type")
+  triggerPayload  Json                      @default("{}") @map("trigger_payload")
+  actionsExecuted Json                      @default("[]") @map("actions_executed")
+  errorMessage    String?                   @map("error_message")
+  durationMs      Int?                      @map("duration_ms")
+  idempotencyKey  String?                   @map("idempotency_key")
+  startedAt       DateTime                  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt     DateTime?                 @map("completed_at") @db.Timestamptz(6)
+  metadata        Json                      @default("{}")
+  createdAt       DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  rule         AutomationRule @relation(fields: [ruleId], references: [id])
+
+  @@index([organizationId, ruleId, startedAt(sort: Desc)], map: "idx_automation_execution_log_rule")
+  @@map("automation_execution_log")
+  @@schema("automation")
+}
+
+// ─── AI Agents ─────────────────────────────────────────────────────────────
+
+enum AgentRole {
+  analyst
+  executor
+  reviewer
+  planner
+  custom
+
+  @@schema("ai_agents")
+}
+
+enum AgentDefinitionStatus {
+  draft
+  published
+  deprecated
+  archived
+
+  @@schema("ai_agents")
+}
+
+enum AgentInvokerType {
+  user
+  workflow
+  automation
+  schedule
+  system
+
+  @@schema("ai_agents")
+}
+
+enum AgentRunStatus {
+  init
+  planning
+  executing
+  review_pending
+  awaiting_human
+  completed
+  failed
+  terminated
+  cancelled
+
+  @@schema("ai_agents")
+}
+
+enum OrchestrationPattern {
+  sequential
+  parallel
+  hierarchical
+
+  @@schema("ai_agents")
+}
+
+enum AgentToolRiskLevel {
+  low
+  medium
+  high
+  critical
+
+  @@schema("ai_agents")
+}
+
+enum AgentToolHandlerType {
+  internal
+  internal_api
+  webhook
+  function
+  workflow
+  agent_spawn
+
+  @@schema("ai_agents")
+}
+
+model AgentDefinition {
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String?               @map("organization_id") @db.Uuid
+  name              String
+  slug              String
+  description       String?
+  role              AgentRole             @default(custom)
+  definitionVersion Int                   @default(1) @map("definition_version")
+  status            AgentDefinitionStatus @default(draft)
+  modelId           String                @default("claude-sonnet-4") @map("model_id")
+  systemPrompt      String                @default("You are a helpful Atlas assistant.") @map("system_prompt")
+  allowedTools      String[]              @default([]) @map("allowed_tools")
+  constraints       Json                  @default("{}")
+  memoryConfig      Json                  @default("{}") @map("memory_config")
+  riskPolicy        Json                  @default("{}") @map("risk_policy")
+  isDefault         Boolean               @default(false) @map("is_default")
+  metadata          Json                  @default("{}")
+  publishedAt       DateTime?             @map("published_at") @db.Timestamptz(6)
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy         String?               @map("created_by") @db.Uuid
+  updatedBy         String?               @map("updated_by") @db.Uuid
+  deletedAt         DateTime?             @map("deleted_at") @db.Timestamptz(6)
+  version           Int                   @default(1)
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  runs         AgentRun[]
+
+  @@index([role, status], map: "idx_agent_definitions_role")
+  @@map("agent_definitions")
+  @@schema("ai_agents")
+}
+
+model AgentTool {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?              @map("organization_id") @db.Uuid
+  toolKey        String               @map("tool_key")
+  name           String
+  description    String?
+  riskLevel      AgentToolRiskLevel   @default(low) @map("risk_level")
+  handlerType    AgentToolHandlerType @default(internal) @map("handler_type")
+  config         Json                 @default("{}")
+  isActive       Boolean              @default(true) @map("is_active")
+  metadata       Json                 @default("{}")
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  version        Int                  @default(1)
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+
+  @@map("agent_tools")
+  @@schema("ai_agents")
+}
+
+model AgentRun {
+  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId        String               @map("organization_id") @db.Uuid
+  agentDefinitionId     String               @map("agent_definition_id") @db.Uuid
+  definitionVersion     Int                  @map("definition_version")
+  invokerType           AgentInvokerType     @default(user) @map("invoker_type")
+  invokerId             String?              @map("invoker_id") @db.Uuid
+  conversationSessionId String?              @map("conversation_session_id") @db.Uuid
+  goal                  String
+  status                AgentRunStatus       @default(init)
+  statusReason          String?              @map("status_reason")
+  orchestrationPattern  OrchestrationPattern @default(sequential) @map("orchestration_pattern")
+  iterationCount        Int                  @default(0) @map("iteration_count")
+  maxIterations         Int                  @default(25) @map("max_iterations")
+  budgetCents           Int                  @default(50) @map("budget_cents")
+  costCents             Int                  @default(0) @map("cost_cents")
+  llmInputTokens        BigInt               @default(0) @map("llm_input_tokens")
+  llmOutputTokens       BigInt               @default(0) @map("llm_output_tokens")
+  startedAt             DateTime             @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt           DateTime?            @map("completed_at") @db.Timestamptz(6)
+  resultSummary         String?              @map("result_summary")
+  resultPayload         Json?                @map("result_payload")
+  errorDetails          Json?                @map("error_details")
+  metadata              Json                 @default("{}")
+  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy             String?              @map("created_by") @db.Uuid
+  updatedBy             String?              @map("updated_by") @db.Uuid
+  deletedAt             DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  version               Int                  @default(1)
+
+  organization    Organization    @relation(fields: [organizationId], references: [id])
+  agentDefinition AgentDefinition @relation(fields: [agentDefinitionId], references: [id])
+
+  @@index([organizationId, status, startedAt(sort: Desc)], map: "idx_agent_runs_org_status")
+  @@map("agent_runs")
+  @@schema("ai_agents")
+}
+
+// ─── AI Memory ────────────────────────────────────────────────────────────────
+
+enum ConversationSessionType {
+  chat
+  agent
+  workflow
+  support
+
+  @@schema("ai_memory")
+}
+
+enum ConversationSessionStatus {
+  active
+  summarized
+  archived
+  expired
+
+  @@schema("ai_memory")
+}
+
+enum ConversationMessageRole {
+  user
+  assistant
+  system
+  tool
+
+  @@schema("ai_memory")
+}
+
+enum ConversationContentType {
+  text
+  markdown
+  json
+  tool_result
+
+  @@schema("ai_memory")
+}
+
+enum MemorySourceType {
+  document
+  kb_article
+  email
+  meeting
+  crm_note
+  chat
+  agent_run
+  user_explicit
+  settings
+
+  @@schema("ai_memory")
+}
+
+enum KnowledgeDocumentSourceType {
+  upload
+  url
+  integration
+  manual
+
+  @@schema("ai_memory")
+}
+
+enum KnowledgeDocumentStatus {
+  pending
+  processing
+  ready
+  failed
+  archived
+
+  @@schema("ai_memory")
+}
+
+model ConversationSession {
+  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String                    @map("organization_id") @db.Uuid
+  userId         String?                   @map("user_id") @db.Uuid
+  agentRunId     String?                   @map("agent_run_id") @db.Uuid
+  sessionType    ConversationSessionType   @default(chat) @map("session_type")
+  status         ConversationSessionStatus @default(active)
+  title          String?
+  contextSummary String?                   @map("context_summary")
+  tokenEstimate  Int                       @default(0) @map("token_estimate")
+  turnCount      Int                       @default(0) @map("turn_count")
+  metadata       Json                      @default("{}")
+  expiresAt      DateTime                  @map("expires_at") @db.Timestamptz(6)
+  lastActivityAt DateTime                  @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy      String?                   @map("created_by") @db.Uuid
+  updatedBy      String?                   @map("updated_by") @db.Uuid
+  deletedAt      DateTime?                 @map("deleted_at") @db.Timestamptz(6)
+  version        Int                       @default(1)
+
+  organization Organization          @relation(fields: [organizationId], references: [id])
+  user         User?                 @relation(fields: [userId], references: [id])
+  messages     ConversationMessage[]
+
+  @@index([organizationId, userId, lastActivityAt(sort: Desc)], map: "idx_conversation_sessions_user")
+  @@index([agentRunId], map: "idx_conversation_sessions_agent_run")
+  @@index([expiresAt], map: "idx_conversation_sessions_expires")
+  @@map("conversation_sessions")
+  @@schema("ai_memory")
+}
+
+model ConversationMessage {
+  id             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String                  @map("organization_id") @db.Uuid
+  sessionId      String                  @map("session_id") @db.Uuid
+  sequenceNumber Int                     @map("sequence_number")
+  role           ConversationMessageRole
+  content        String
+  contentType    ConversationContentType @default(text) @map("content_type")
+  toolCalls      Json?                   @map("tool_calls")
+  toolCallId     String?                 @map("tool_call_id")
+  tokenCount     Int?                    @map("token_count")
+  metadata       Json                    @default("{}")
+  createdAt      DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt      DateTime?               @map("deleted_at") @db.Timestamptz(6)
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  session      ConversationSession @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId, sequenceNumber], map: "idx_conversation_messages_session")
+  @@map("conversation_messages")
+  @@schema("ai_memory")
+}
+
+model MemoryChunk {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String           @map("organization_id") @db.Uuid
+  sourceType      MemorySourceType @map("source_type")
+  sourceId        String           @map("source_id") @db.Uuid
+  sourceVersion   Int              @default(1) @map("source_version")
+  chunkIndex      Int              @default(0) @map("chunk_index")
+  contentHash     String           @map("content_hash")
+  textContent     String           @map("text_content")
+  tokenCount      Int?             @map("token_count")
+  language        String?          @default("en")
+  containsPii     Boolean          @default(false) @map("contains_pii")
+  importanceScore Decimal          @default(0.5) @map("importance_score") @db.Decimal(5, 4)
+  embedding       Unsupported("float8[]")? @map("embedding")
+  accessPolicy    Json             @default("{}") @map("access_policy")
+  entityRefs      Json             @default("[]") @map("entity_refs")
+  metadata        Json             @default("{}")
+  lastAccessedAt  DateTime?        @map("last_accessed_at") @db.Timestamptz(6)
+  expiresAt       DateTime?        @map("expires_at") @db.Timestamptz(6)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy       String?          @map("created_by") @db.Uuid
+  updatedBy       String?          @map("updated_by") @db.Uuid
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  version         Int              @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId], map: "idx_memory_chunks_organization_id")
+  @@index([organizationId, sourceType, sourceId], map: "idx_memory_chunks_source")
+  @@map("memory_chunks")
+  @@schema("ai_memory")
+}
+
+model KnowledgeDocument {
+  id             String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String                      @map("organization_id") @db.Uuid
+  title          String
+  description    String?
+  sourceType     KnowledgeDocumentSourceType @default(upload) @map("source_type")
+  sourceUri      String?                     @map("source_uri")
+  contentType    String                      @default("text/plain") @map("content_type")
+  rawContent     String?                     @map("raw_content")
+  status         KnowledgeDocumentStatus     @default(pending)
+  chunkCount     Int                         @default(0) @map("chunk_count")
+  metadata       Json                        @default("{}")
+  createdAt      DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy      String?                     @map("created_by") @db.Uuid
+  updatedBy      String?                     @map("updated_by") @db.Uuid
+  deletedAt      DateTime?                   @map("deleted_at") @db.Timestamptz(6)
+  version        Int                         @default(1)
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  chunks         KnowledgeChunk[]
+
+  @@index([organizationId, status], map: "idx_knowledge_documents_org_status")
+  @@map("knowledge_documents")
+  @@schema("ai_memory")
+}
+
+model KnowledgeChunk {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  documentId     String    @map("document_id") @db.Uuid
+  chunkIndex     Int       @default(0) @map("chunk_index")
+  contentHash    String    @map("content_hash")
+  textContent    String    @map("text_content")
+  tokenCount     Int?      @map("token_count")
+  embedding      Unsupported("float8[]")? @map("embedding")
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  document       KnowledgeDocument @relation(fields: [documentId], references: [id])
+
+  @@index([documentId, chunkIndex], map: "idx_knowledge_chunks_document")
+  @@index([organizationId], map: "idx_knowledge_chunks_organization")
+  @@map("knowledge_chunks")
+  @@schema("ai_memory")
+}
+
+// ─── CRM (Customer) ───────────────────────────────────────────────────────────
+
+enum CrmAccountType {
+  prospect
+  customer
+  partner
+  vendor
+  competitor
+  other
+
+  @@schema("customer")
+}
+
+enum CrmAccountStatus {
+  active
+  inactive
+  archived
+
+  @@schema("customer")
+}
+
+enum CrmContactStatus {
+  active
+  inactive
+  bounced
+  unsubscribed
+
+  @@schema("customer")
+}
+
+enum DealStatus {
+  open
+  won
+  lost
+  abandoned
+
+  @@schema("customer")
+}
+
+model CrmAccount {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String           @map("organization_id") @db.Uuid
+  externalId      String?          @map("external_id")
+  name            String
+  legalName       String?          @map("legal_name")
+  accountType     CrmAccountType   @default(prospect) @map("account_type")
+  industry        String?
+  website         String?
+  phone           String?
+  email           String?          @db.Citext
+  billingAddress  Json             @default("{}") @map("billing_address")
+  shippingAddress Json             @default("{}") @map("shipping_address")
+  annualRevenue   Decimal?         @map("annual_revenue") @db.Decimal(19, 4)
+  employeeCount   Int?             @map("employee_count")
+  currencyCode    String           @default("USD") @map("currency_code") @db.Char(3)
+  parentAccountId String?          @map("parent_account_id") @db.Uuid
+  ownerId         String?          @map("owner_id") @db.Uuid
+  status          CrmAccountStatus @default(active)
+  description     String?
+  metadata        Json             @default("{}")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdBy       String?          @map("created_by") @db.Uuid
+  updatedBy       String?          @map("updated_by") @db.Uuid
+  version         Int              @default(1)
+
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  parentAccount CrmAccount?  @relation("CrmAccountHierarchy", fields: [parentAccountId], references: [id])
+  childAccounts CrmAccount[] @relation("CrmAccountHierarchy")
+  contacts      CrmContact[]
+  deals         Deal[]
+
+  @@unique([organizationId, externalId], map: "uq_crm_accounts_org_external_id")
+  @@index([organizationId], map: "idx_crm_accounts_organization_id")
+  @@index([organizationId, ownerId], map: "idx_crm_accounts_org_owner_active")
+  @@index([organizationId, accountType, status], map: "idx_crm_accounts_org_type_status_active")
+  @@map("accounts")
+  @@schema("customer")
+}
+
+model CrmContact {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String           @map("organization_id") @db.Uuid
+  externalId      String?          @map("external_id")
+  accountId       String?          @map("account_id") @db.Uuid
+  salutation      String?
+  firstName       String?          @map("first_name")
+  lastName        String?          @map("last_name")
+  displayName     String           @map("display_name")
+  email           String?          @db.Citext
+  phone           String?
+  mobile          String?
+  jobTitle        String?          @map("job_title")
+  department      String?
+  mailingAddress  Json             @default("{}") @map("mailing_address")
+  isPrimary       Boolean          @default(false) @map("is_primary")
+  ownerId         String?          @map("owner_id") @db.Uuid
+  leadSource      String?          @map("lead_source")
+  status          CrmContactStatus @default(active)
+  lastContactedAt DateTime?        @map("last_contacted_at") @db.Timestamptz(6)
+  metadata        Json             @default("{}")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdBy       String?          @map("created_by") @db.Uuid
+  updatedBy       String?          @map("updated_by") @db.Uuid
+  version         Int              @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  account      CrmAccount?  @relation(fields: [accountId], references: [id])
+  deals        Deal[]
+
+  @@unique([organizationId, externalId], map: "uq_crm_contacts_org_external_id")
+  @@index([organizationId], map: "idx_crm_contacts_organization_id")
+  @@index([organizationId, accountId], map: "idx_crm_contacts_org_account_active")
+  @@index([organizationId, ownerId], map: "idx_crm_contacts_org_owner_active")
+  @@map("contacts")
+  @@schema("customer")
+}
+
+model PipelineStage {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  pipelineId     String    @default(dbgenerated("gen_random_uuid()")) @map("pipeline_id") @db.Uuid
+  pipelineName   String    @default("Default Pipeline") @map("pipeline_name")
+  name           String
+  description    String?
+  sortOrder      Int       @map("sort_order")
+  probability    Int       @default(0)
+  isDefault      Boolean   @default(false) @map("is_default")
+  isWon          Boolean   @default(false) @map("is_won")
+  isLost         Boolean   @default(false) @map("is_lost")
+  isClosed       Boolean   @default(false) @map("is_closed")
+  color          String?
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy      String?   @map("created_by") @db.Uuid
+  updatedBy      String?   @map("updated_by") @db.Uuid
+  version        Int       @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  deals        Deal[]
+
+  @@unique([organizationId, pipelineId, sortOrder], map: "uq_pipeline_stages_org_pipeline_order")
+  @@index([organizationId], map: "idx_pipeline_stages_organization_id")
+  @@index([organizationId, pipelineId, sortOrder], map: "idx_pipeline_stages_org_pipeline_active")
+  @@map("pipeline_stages")
+  @@schema("customer")
+}
+
+model Deal {
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String     @map("organization_id") @db.Uuid
+  externalId        String?    @map("external_id")
+  name              String
+  accountId         String?    @map("account_id") @db.Uuid
+  contactId         String?    @map("contact_id") @db.Uuid
+  pipelineStageId   String     @map("pipeline_stage_id") @db.Uuid
+  ownerId           String     @map("owner_id") @db.Uuid
+  amount            Decimal    @default(0) @db.Decimal(19, 4)
+  currencyCode      String     @default("USD") @map("currency_code") @db.Char(3)
+  probability       Int        @default(0)
+  expectedCloseDate DateTime?  @map("expected_close_date") @db.Date
+  actualCloseDate   DateTime?  @map("actual_close_date") @db.Date
+  status            DealStatus @default(open)
+  lossReason        String?    @map("loss_reason")
+  leadSource        String?    @map("lead_source")
+  description       String?
+  metadata          Json       @default("{}")
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?  @map("deleted_at") @db.Timestamptz(6)
+  createdBy         String?    @map("created_by") @db.Uuid
+  updatedBy         String?    @map("updated_by") @db.Uuid
+  version           Int        @default(1)
+
+  organization  Organization  @relation(fields: [organizationId], references: [id])
+  account       CrmAccount?   @relation(fields: [accountId], references: [id])
+  contact       CrmContact?   @relation(fields: [contactId], references: [id])
+  pipelineStage PipelineStage @relation(fields: [pipelineStageId], references: [id])
+
+  @@unique([organizationId, externalId], map: "uq_deals_org_external_id")
+  @@index([organizationId], map: "idx_deals_organization_id")
+  @@index([organizationId, pipelineStageId], map: "idx_deals_org_stage_active")
+  @@index([organizationId, ownerId], map: "idx_deals_org_owner_active")
+  @@index([organizationId, accountId], map: "idx_deals_org_account_active")
+  @@index([organizationId, status, expectedCloseDate], map: "idx_deals_org_status_close_date")
+  @@map("deals")
+  @@schema("customer")
+}
+
+enum ProjectStatus {
+  planning
+  active
+  on_hold
+  completed
+  cancelled
+  archived
+
+  @@schema("projects")
+}
+
+enum ProjectPriority {
+  low
+  medium
+  high
+  critical
+
+  @@schema("projects")
+}
+
+enum TaskStatus {
+  backlog
+  todo
+  in_progress
+  in_review
+  blocked
+  done
+  cancelled
+
+  @@schema("projects")
+}
+
+model Project {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String          @map("organization_id") @db.Uuid
+  workspaceId     String?         @map("workspace_id") @db.Uuid
+  code            String
+  name            String
+  description     String?
+  status          ProjectStatus   @default(planning)
+  priority        ProjectPriority @default(medium)
+  startDate       DateTime?       @map("start_date") @db.Date
+  targetEndDate   DateTime?       @map("target_end_date") @db.Date
+  progressPercent Decimal         @default(0) @map("progress_percent") @db.Decimal(5, 2)
+  metadata        Json            @default("{}")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy       String?         @map("created_by") @db.Uuid
+  updatedBy       String?         @map("updated_by") @db.Uuid
+  deletedAt       DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  version         Int             @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  workspace    Workspace?   @relation(fields: [workspaceId], references: [id])
+  tasks        ProjectTask[]
+
+  @@index([organizationId, status], map: "idx_projects_org_status")
+  @@map("projects")
+  @@schema("projects")
+}
+
+model ProjectTask {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String          @map("organization_id") @db.Uuid
+  projectId      String          @map("project_id") @db.Uuid
+  parentTaskId   String?         @map("parent_task_id") @db.Uuid
+  assigneeId     String?         @map("assignee_id") @db.Uuid
+  title          String
+  description    String?
+  status         TaskStatus      @default(todo)
+  priority       ProjectPriority @default(medium)
+  dueDate        DateTime?       @map("due_date") @db.Timestamptz(6)
+  completedAt    DateTime?       @map("completed_at") @db.Timestamptz(6)
+  metadata       Json            @default("{}")
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy      String?         @map("created_by") @db.Uuid
+  updatedBy      String?         @map("updated_by") @db.Uuid
+  deletedAt      DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  version        Int             @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  project      Project      @relation(fields: [projectId], references: [id])
+  parentTask   ProjectTask? @relation("ProjectTaskHierarchy", fields: [parentTaskId], references: [id])
+  childTasks   ProjectTask[] @relation("ProjectTaskHierarchy")
+  assignee     User?        @relation("ProjectTaskAssignee", fields: [assigneeId], references: [id])
+
+  @@index([organizationId, projectId], map: "idx_tasks_project")
+  @@index([organizationId, assigneeId, status], map: "idx_tasks_assignee")
+  @@map("tasks")
+  @@schema("projects")
+}
+
+enum LedgerAccountType {
+  asset
+  liability
+  equity
+  revenue
+  expense
+
+  @@schema("ledger")
+}
+
+enum NormalBalance {
+  debit
+  credit
+
+  @@schema("ledger")
+}
+
+enum JournalEntryStatus {
+  draft
+  posted
+  reversed
+
+  @@schema("ledger")
+}
+
+model ChartOfAccount {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String            @map("organization_id") @db.Uuid
+  parentAccountId String?           @map("parent_account_id") @db.Uuid
+  code            String
+  name            String
+  description     String?
+  accountType     LedgerAccountType @map("account_type")
+  normalBalance   NormalBalance     @map("normal_balance")
+  isActive        Boolean           @default(true) @map("is_active")
+  isSystem        Boolean           @default(false) @map("is_system")
+  currencyCode    String            @default("USD") @map("currency_code") @db.Char(3)
+  metadata        Json              @default("{}")
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  createdBy       String?           @map("created_by") @db.Uuid
+  updatedBy       String?           @map("updated_by") @db.Uuid
+  version         Int               @default(1)
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  parentAccount ChartOfAccount?  @relation("CoaHierarchy", fields: [parentAccountId], references: [id])
+  childAccounts ChartOfAccount[] @relation("CoaHierarchy")
+  journalLines  JournalLine[]
+
+  @@unique([organizationId, code], map: "uq_coa_org_code_active")
+  @@index([organizationId], map: "idx_coa_organization_id")
+  @@map("chart_of_accounts")
+  @@schema("ledger")
+}
+
+model JournalEntry {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String             @map("organization_id") @db.Uuid
+  entryNumber    String             @map("entry_number")
+  entryDate      DateTime           @default(now()) @map("entry_date") @db.Date
+  status         JournalEntryStatus @default(draft)
+  description    String
+  currencyCode   String             @default("USD") @map("currency_code") @db.Char(3)
+  totalDebit     Decimal            @default(0) @map("total_debit") @db.Decimal(19, 4)
+  totalCredit    Decimal            @default(0) @map("total_credit") @db.Decimal(19, 4)
+  postedBy       String?            @map("posted_by") @db.Uuid
+  postedAt       DateTime?          @map("posted_at") @db.Timestamptz(6)
+  metadata       Json               @default("{}")
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  createdBy      String?            @map("created_by") @db.Uuid
+  updatedBy      String?            @map("updated_by") @db.Uuid
+  version        Int                @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  postedByUser User?        @relation("JournalEntryPostedBy", fields: [postedBy], references: [id])
+  lines        JournalLine[]
+
+  @@unique([organizationId, entryNumber], map: "uq_journal_entries_org_number")
+  @@index([organizationId], map: "idx_journal_entries_organization_id")
+  @@map("journal_entries")
+  @@schema("ledger")
+}
+
+model JournalLine {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  journalEntryId String    @map("journal_entry_id") @db.Uuid
+  accountId      String    @map("account_id") @db.Uuid
+  lineNumber     Int       @map("line_number")
+  description    String?
+  debitAmount    Decimal   @default(0) @map("debit_amount") @db.Decimal(19, 4)
+  creditAmount   Decimal   @default(0) @map("credit_amount") @db.Decimal(19, 4)
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version        Int       @default(1)
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  journalEntry JournalEntry   @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      ChartOfAccount @relation(fields: [accountId], references: [id])
+
+  @@index([journalEntryId], map: "idx_journal_lines_entry")
+  @@map("journal_lines")
+  @@schema("ledger")
+}
