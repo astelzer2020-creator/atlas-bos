@@ -135,11 +135,6 @@ OAuth applications and API keys are authorized via **scopes** that map to RBAC p
 | `openid` | Identity token claims | Standard |
 | `profile` | User profile read | Standard |
 | `email` | Email address read | Standard |
-| `platform:read` | `platform:*:read` (orgs, teams, members) | Standard |
-| `platform:write` | `platform:*:write` | Standard |
-| `admin:members:invite` | `admin:members:invite` | Standard |
-| `admin:members:manage` | `admin:members:manage` | Standard |
-| `admin:teams:manage` | `admin:teams:manage` | Standard |
 | `contacts:read` | `crm:contacts:read` | Standard |
 | `contacts:write` | `crm:contacts:write` | Standard |
 | `invoices:read` | `finance:invoices:read` | Standard |
