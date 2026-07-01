@@ -218,6 +218,60 @@ UI-PROJ-MOD-{NNN}   Modal / drawer overlay
 
 ---
 
+## UI-PROJ-003 — Project Detail (Tasks Tab)
+
+**Route:** `/projects/:projectId/tasks`  
+**Permissions:** `projects:tasks:read`
+
+Aggregated task tree view (hierarchical). Links to board/list/Gantt via sub-views.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ [+ Create task]     Filter: [Status▾] [Assignee▾] [Sprint▾]    [Board][List] │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ ▼ Epic: Homepage Redesign                                                    │
+│   ├─ ● In Progress  T-88  Hero section           Alice    Due Jul 5         │
+│   ├─ ○ To Do        T-89  Footer redesign        —        Due Jul 8         │
+│   └─ ✓ Done         T-90  Wireframes             Bob      Completed         │
+│ ▼ Epic: Backend API                                                          │
+│   └─ ...                                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## UI-PROJ-004 — Project Detail (Timeline Tab)
+
+**Route:** `/projects/:projectId/timeline` (alias for activity + milestone timeline, distinct from Gantt)
+
+Chronological feed: status changes, milestone completions, sprint boundaries, dependency resolutions.
+
+---
+
+## UI-PROJ-005 — Project Detail (Files Tab)
+
+**Route:** `/projects/:projectId/files`  
+**Permissions:** `projects:projects:read`; upload requires `documents:files:write`
+
+Integrates Documents module. Folder tree, drag-drop upload, link existing document.
+
+---
+
+## UI-PROJ-006 — Project Detail (Settings Tab)
+
+**Route:** `/projects/:projectId/settings`  
+**Permissions:** `projects:projects:manage`
+
+Sections: General, Members & Roles, Workflows, Integrations, Danger Zone (archive/delete).
+
+| Field | Validation |
+|-------|------------|
+| Code | Unique per org; uppercase alphanumeric + hyphen |
+| Visibility | `private` \| `team` \| `organization` |
+| Budget hours/amount | Numeric; currency from org default |
+
+---
+
 ## UI-PROJ-007 — Task Board (Kanban)
 
 **Route:** `/projects/:projectId/board`  
@@ -227,19 +281,36 @@ UI-PROJ-MOD-{NNN}   Modal / drawer overlay
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ Board: Website Redesign    [Filter▾] [Group: Status◉] [+ Create task]        │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ To Do (8)        │ In Progress (5)  │ Review (3)      │ Done (12)           │
-│ ┌──────────────┐ │ ┌──────────────┐   │ ┌────────────┐  │ ┌──────────────┐    │
-│ │ T-88 Hero    │ │ │ T-91 API     │   │ │ T-85 QA    │  │ │ T-80 Setup   │    │
-│ │ High  Alice  │ │ │ Med   Bob    │   │ │ Low Carol  │  │ │ Done         │    │
-│ └──────────────┘ │ └──────────────┘   │ └────────────┘  │ └──────────────┘    │
-└──────────────────────────────────────────────────────────────────────────────┘
+│ Board: [Default workflow▾]  Group: [Status▾]  [+ Add column] (admin only)   │
+├──────────────┬──────────────┬──────────────┬──────────────┬──────────────────┤
+│ To Do (12)   │ In Progress  │ In Review    │ Done (45)    │ +                │
+│              │ (5)          │ (3)          │              │                  │
+│ ┌──────────┐ │ ┌──────────┐ │ ┌──────────┐ │ ┌──────────┐ │                  │
+│ │ T-88     │ │ │ T-91     │ │ │ T-85     │ │ │ T-80     │ │                  │
+│ │ Hero     │ │ │ API auth │ │ │ QA pass  │ │ │ Setup    │ │                  │
+│ │ 🔴 Jul 5 │ │ │ 🟡 Jul 9 │ │ │ 👤 Carol │ │ │ ✓        │ │                  │
+│ │ 👤 Alice │ │ │ 👤 Bob   │ │ └──────────┘ │ └──────────┘ │                  │
+│ └──────────┘ │ └──────────┘ │              │              │                  │
+│ [+ Task]     │              │              │              │                  │
+└──────────────┴──────────────┴──────────────┴──────────────┴──────────────────┘
 ```
 
-- Drag-and-drop between columns updates `status` via API.
-- WIP limits shown when configured (Settings).
-- xs–sm: Single column swipe view with column picker.
+### Interactions
+
+| Action | Behavior |
+|--------|----------|
+| Card click | Opens UI-PROJ-009 drawer |
+| Drag card | Optimistic move; PATCH status/column; toast on conflict (version mismatch) |
+| `+ Task` | UI-PROJ-MOD-001 with preset column status |
+| Swimlanes | Optional group by assignee, priority, epic (lg+ only) |
+
+### Responsive
+
+| Breakpoint | Behavior |
+|------------|----------|
+| xs–sm | Single column swipe carousel between statuses; no drag between columns (use status picker in drawer) |
+| md | Horizontal scroll columns |
+| lg+ | Full kanban with drag-drop |
 
 ---
 
@@ -248,24 +319,49 @@ UI-PROJ-MOD-{NNN}   Modal / drawer overlay
 **Route:** `/projects/:projectId/list`  
 **Permissions:** `projects:tasks:read`
 
-Spreadsheet-style table: checkbox bulk actions, inline edit (title, assignee, due, priority), export CSV.
+### Wireframe
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ [☐ Select all]  Bulk: [Status▾] [Assign▾] [Delete]        [+ Create task]  │
+├────┬────────┬─────────────────────┬──────────┬─────────┬──────┬──────────────┤
+│ ☐  │ T-88   │ Hero section        │ Progress │ Alice   │ Jul 5│ High         │
+│ ☐  │ T-89   │ Footer redesign     │ To Do    │ —       │ Jul 8│ Medium       │
+└────┴────────┴─────────────────────┴──────────┴─────────┴──────┴──────────────┘
+```
+
+- Inline edit for title, status, assignee (permission-gated).
+- Column chooser persisted per user.
+- Export CSV: `projects:tasks:read`.
 
 ---
 
 ## UI-PROJ-009 — Task Detail Drawer
 
-**Trigger:** Click task card/row  
+**Trigger:** Click task card/row anywhere in project  
 **Permissions:** `projects:tasks:read`
+
+### Wireframe
 
 ```
                                     ┌─────────────────────────────────────┐
-                                    │ T-88 Hero section              [×]  │
+                                    │ T-88 — Hero section            [×]  │
                                     ├─────────────────────────────────────┤
-                                    │ Status: [In Progress ▾]             │
-                                    │ Assignee: Alice  Due: Jul 8         │
-                                    │ [Description] [Comments] [Time]     │
-                                    │ Dependencies: T-80 (blocks)         │
+                                    │ Status: [In Progress▾]  Priority: H │
+                                    │ Assignee: [Alice▾]      Due: Jul 5  │
+                                    │ Sprint: [Sprint 14▾]    Epic: [▾]   │
+                                    ├─────────────────────────────────────┤
+                                    │ Description                         │
+                                    │ ┌─────────────────────────────────┐ │
+                                    │ │ Rich text editor                │ │
+                                    │ └─────────────────────────────────┘ │
+                                    ├─────────────────────────────────────┤
+                                    │ Dependencies  [+ Add]               │
+                                    │ ← Blocked by T-85 (Done)            │
+                                    │ → Blocks T-92                       │
+                                    ├─────────────────────────────────────┤
                                     │ Subtasks (2/5)                      │
+                                    │ Comments │ Activity │ Time (4.5h)  │
                                     └─────────────────────────────────────┘
 ```
 
