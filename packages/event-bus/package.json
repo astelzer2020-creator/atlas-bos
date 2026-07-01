@@ -1,0 +1,36 @@
+{
+  "name": "@atlas/event-bus",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Atlas BOS — Kafka and Redis event infrastructure",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "lint": "eslint \"src/**/*.ts\"",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@atlas/shared-kernel": "workspace:*",
+    "ioredis": "^5.4.2",
+    "kafkajs": "^2.2.4",
+    "ulid": "^2.3.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
