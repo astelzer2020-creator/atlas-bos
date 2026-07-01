@@ -1,0 +1,716 @@
+// AI bounded contexts — schemas: ai_memory, ai_agents
+// Memory (ARCH-18) + Agents (ARCH-17)
+
+// ─── AI Memory Enums ───────────────────────────────────────────────────────
+
+enum MemorySourceType {
+  document
+  kb_article
+  email
+  meeting
+  crm_note
+  chat
+  agent_run
+  user_explicit
+  settings
+
+  @@schema("ai_memory")
+}
+
+enum ConversationSessionType {
+  chat
+  agent
+  workflow
+  support
+
+  @@schema("ai_memory")
+}
+
+enum ConversationSessionStatus {
+  active
+  summarized
+  archived
+  expired
+
+  @@schema("ai_memory")
+}
+
+enum ConversationMessageRole {
+  user
+  assistant
+  system
+  tool
+
+  @@schema("ai_memory")
+}
+
+enum ConversationContentType {
+  text
+  markdown
+  json
+  tool_result
+
+  @@schema("ai_memory")
+}
+
+enum SemanticFactCategory {
+  policy
+  preference
+  relationship
+  definition
+  constraint
+  general
+
+  @@schema("ai_memory")
+}
+
+enum MemoryVisibility {
+  tenant_wide
+  role_restricted
+  private
+
+  @@schema("ai_memory")
+}
+
+enum EpisodicActorType {
+  user
+  agent
+  system
+  workflow
+
+  @@schema("ai_memory")
+}
+
+enum EpisodicOutcome {
+  success
+  failure
+  partial
+  rejected_by_human
+  cancelled
+
+  @@schema("ai_memory")
+}
+
+enum UserFeedback {
+  positive
+  negative
+  neutral
+
+  @@schema("ai_memory")
+}
+
+enum ConsolidationJobType {
+  document_to_ltm
+  session_to_episodic
+  agent_run_to_episodic
+  fact_extraction
+  deduplication
+  re_embedding
+  decay_gc
+
+  @@schema("ai_memory")
+}
+
+enum ConsolidationJobStatus {
+  pending
+  running
+  completed
+  failed
+  cancelled
+
+  @@schema("ai_memory")
+}
+
+// ─── AI Agents Enums ───────────────────────────────────────────────────────
+
+enum AgentRole {
+  analyst
+  executor
+  reviewer
+  planner
+  custom
+
+  @@schema("ai_agents")
+}
+
+enum AgentDefinitionStatus {
+  draft
+  published
+  deprecated
+  archived
+
+  @@schema("ai_agents")
+}
+
+enum AgentInvokerType {
+  user
+  workflow
+  automation
+  schedule
+  system
+
+  @@schema("ai_agents")
+}
+
+enum AgentRunStatus {
+  init
+  planning
+  executing
+  review_pending
+  awaiting_human
+  completed
+  failed
+  terminated
+  cancelled
+
+  @@schema("ai_agents")
+}
+
+enum OrchestrationPattern {
+  sequential
+  parallel
+  hierarchical
+
+  @@schema("ai_agents")
+}
+
+enum AgentRunStepType {
+  think
+  act
+  observe
+  plan
+  review
+  finish
+
+  @@schema("ai_agents")
+}
+
+enum AgentRunStepStatus {
+  pending
+  running
+  completed
+  failed
+  skipped
+
+  @@schema("ai_agents")
+}
+
+enum AgentToolCategory {
+  read
+  write
+  communicate
+  orchestrate
+  memory
+  meta
+
+  @@schema("ai_agents")
+}
+
+enum AgentToolRiskLevel {
+  low
+  medium
+  high
+  critical
+
+  @@schema("ai_agents")
+}
+
+enum AgentToolHandlerType {
+  internal_api
+  webhook
+  function
+  workflow
+  agent_spawn
+
+  @@schema("ai_agents")
+}
+
+enum ToolInvocationStatus {
+  pending
+  running
+  success
+  failure
+  denied
+  timeout
+
+  @@schema("ai_agents")
+}
+
+enum PermissionCheckResult {
+  passed
+  denied
+  approval_required
+
+  @@schema("ai_agents")
+}
+
+enum AgentApprovalStatus {
+  pending
+  approved
+  rejected
+  expired
+  cancelled
+
+  @@schema("ai_agents")
+}
+
+enum AgentBudgetScope {
+  organization
+  user
+  agent_definition
+  agent_run
+
+  @@schema("ai_agents")
+}
+
+enum AgentBudgetPeriodType {
+  daily
+  weekly
+  monthly
+  per_run
+  unlimited
+
+  @@schema("ai_agents")
+}
+
+// ─── AI Memory Models ──────────────────────────────────────────────────────
+
+model MemoryChunk {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String           @map("organization_id") @db.Uuid
+  sourceType      MemorySourceType @map("source_type")
+  sourceId        String           @map("source_id") @db.Uuid
+  sourceVersion   Int              @default(1) @map("source_version")
+  chunkIndex      Int              @default(0) @map("chunk_index")
+  contentHash     String           @map("content_hash")
+  textContent     String           @map("text_content")
+  tokenCount      Int?             @map("token_count")
+  language        String?          @default("en")
+  containsPii     Boolean          @default(false) @map("contains_pii")
+  importanceScore Decimal          @default(0.5) @map("importance_score") @db.Decimal(5, 4)
+  accessPolicy    Json             @default("{}") @map("access_policy")
+  entityRefs      Json             @default("[]") @map("entity_refs")
+  metadata        Json             @default("{}")
+  lastAccessedAt  DateTime?        @map("last_accessed_at") @db.Timestamptz(6)
+  expiresAt       DateTime?        @map("expires_at") @db.Timestamptz(6)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy       String?          @map("created_by") @db.Uuid
+  updatedBy       String?          @map("updated_by") @db.Uuid
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  version         Int              @default(1)
+
+  embedding MemoryEmbedding?
+
+  @@unique([organizationId, sourceType, sourceId, sourceVersion, chunkIndex], map: "uq_memory_chunks_source_chunk_active")
+  @@index([organizationId], map: "idx_memory_chunks_organization_id")
+  @@index([organizationId, sourceType, sourceId], map: "idx_memory_chunks_source")
+  @@index([organizationId, expiresAt], map: "idx_memory_chunks_expires")
+  @@map("memory_chunks")
+  @@schema("ai_memory")
+}
+
+model MemoryEmbedding {
+  id            String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String                     @map("organization_id") @db.Uuid
+  memoryChunkId String                      @map("memory_chunk_id") @db.Uuid
+  embedding     Unsupported("vector(3072)")
+  modelVersion  String                      @default("text-embedding-3-large-v1") @map("model_version")
+  dimensions    Int                         @default(3072)
+  createdAt     DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?                   @map("deleted_at") @db.Timestamptz(6)
+  version       Int                         @default(1)
+
+  memoryChunk MemoryChunk @relation(fields: [memoryChunkId], references: [id])
+
+  @@unique([memoryChunkId, modelVersion], map: "uq_memory_embeddings_chunk_model_active")
+  @@index([organizationId], map: "idx_memory_embeddings_organization_id")
+  @@map("memory_embeddings")
+  @@schema("ai_memory")
+}
+
+model ConversationSession {
+  id              String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String                    @map("organization_id") @db.Uuid
+  userId          String?                   @map("user_id") @db.Uuid
+  agentRunId      String?                   @map("agent_run_id") @db.Uuid
+  sessionType     ConversationSessionType   @default(chat) @map("session_type")
+  status          ConversationSessionStatus @default(active)
+  title           String?
+  contextSummary  String?                   @map("context_summary")
+  tokenEstimate   Int                       @default(0) @map("token_estimate")
+  turnCount       Int                       @default(0) @map("turn_count")
+  metadata        Json                      @default("{}")
+  expiresAt       DateTime                  @map("expires_at") @db.Timestamptz(6)
+  lastActivityAt  DateTime                  @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  createdAt       DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy       String?                   @map("created_by") @db.Uuid
+  updatedBy       String?                   @map("updated_by") @db.Uuid
+  deletedAt       DateTime?                 @map("deleted_at") @db.Timestamptz(6)
+  version         Int                       @default(1)
+
+  messages ConversationMessage[]
+
+  @@index([organizationId, userId, lastActivityAt(sort: Desc)], map: "idx_conversation_sessions_user")
+  @@index([agentRunId], map: "idx_conversation_sessions_agent_run")
+  @@index([expiresAt], map: "idx_conversation_sessions_expires")
+  @@map("conversation_sessions")
+  @@schema("ai_memory")
+}
+
+model ConversationMessage {
+  id             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String                  @map("organization_id") @db.Uuid
+  sessionId      String                  @map("session_id") @db.Uuid
+  sequenceNumber Int                     @map("sequence_number")
+  role           ConversationMessageRole
+  content        String
+  contentType    ConversationContentType @default(text) @map("content_type")
+  toolCalls      Json?                   @map("tool_calls")
+  toolCallId     String?                 @map("tool_call_id")
+  tokenCount     Int?                    @map("token_count")
+  metadata       Json                    @default("{}")
+  createdAt      DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt      DateTime?               @map("deleted_at") @db.Timestamptz(6)
+
+  session ConversationSession @relation(fields: [sessionId], references: [id])
+
+  @@unique([sessionId, sequenceNumber], map: "uq_conversation_messages_session_seq")
+  @@index([sessionId, sequenceNumber], map: "idx_conversation_messages_session")
+  @@map("conversation_messages")
+  @@schema("ai_memory")
+}
+
+model SemanticFact {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  subject        String
+  subjectType    String               @default("organization") @map("subject_type")
+  predicate      String
+  objectValue    String               @map("object_value")
+  objectType     String?              @default("literal") @map("object_type")
+  properties     Json                 @default("{}")
+  category       SemanticFactCategory @default(general)
+  source         String
+  sourceId       String?              @map("source_id") @db.Uuid
+  confidence     Decimal              @default(1.0) @db.Decimal(5, 4)
+  visibility     MemoryVisibility     @default(tenant_wide)
+  verifiedAt     DateTime?            @map("verified_at") @db.Timestamptz(6)
+  verifiedBy     String?              @map("verified_by") @db.Uuid
+  expiresAt      DateTime?            @map("expires_at") @db.Timestamptz(6)
+  supersededById String?              @map("superseded_by_id") @db.Uuid
+  isActive       Boolean              @default(true) @map("is_active")
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy      String?              @map("created_by") @db.Uuid
+  updatedBy      String?              @map("updated_by") @db.Uuid
+  deletedAt      DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  version        Int                  @default(1)
+
+  supersededBy SemanticFact?  @relation("FactSupersession", fields: [supersededById], references: [id])
+  supersedes   SemanticFact[] @relation("FactSupersession")
+
+  @@index([organizationId, subject, predicate], map: "idx_semantic_facts_lookup")
+  @@index([organizationId, category], map: "idx_semantic_facts_category")
+  @@index([organizationId, expiresAt], map: "idx_semantic_facts_expires")
+  @@map("semantic_facts")
+  @@schema("ai_memory")
+}
+
+model EpisodicMemory {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String            @map("organization_id") @db.Uuid
+  actorType        EpisodicActorType @map("actor_type")
+  actorId          String?           @map("actor_id") @db.Uuid
+  action           String
+  entityRefs       Json              @default("[]") @map("entity_refs")
+  outcome          EpisodicOutcome
+  outcomeDetail    String?           @map("outcome_detail")
+  userFeedback     UserFeedback?     @map("user_feedback")
+  summary          String
+  importanceScore  Decimal           @default(0.5) @map("importance_score") @db.Decimal(5, 4)
+  visibility       MemoryVisibility  @default(tenant_wide)
+  occurredAt       DateTime          @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  metadata         Json              @default("{}")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy        String?           @map("created_by") @db.Uuid
+  updatedBy        String?           @map("updated_by") @db.Uuid
+  deletedAt        DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  version          Int               @default(1)
+
+  @@index([organizationId, actorType, actorId, occurredAt(sort: Desc)], map: "idx_episodic_memories_actor")
+  @@index([organizationId, action, occurredAt(sort: Desc)], map: "idx_episodic_memories_action")
+  @@index([organizationId, importanceScore(sort: Desc)], map: "idx_episodic_memories_importance")
+  @@map("episodic_memories")
+  @@schema("ai_memory")
+}
+
+model MemoryConsolidationJob {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String                 @map("organization_id") @db.Uuid
+  jobType        ConsolidationJobType   @map("job_type")
+  status         ConsolidationJobStatus @default(pending)
+  sourceType     String?                @map("source_type")
+  sourceId       String?                @map("source_id") @db.Uuid
+  idempotencyKey String                 @map("idempotency_key")
+  inputParams    Json                   @default("{}") @map("input_params")
+  outputSummary  Json                   @default("{}") @map("output_summary")
+  itemsProcessed Int                    @default(0) @map("items_processed")
+  itemsFailed    Int                    @default(0) @map("items_failed")
+  errorMessage   String?                @map("error_message")
+  startedAt      DateTime?              @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime?              @map("completed_at") @db.Timestamptz(6)
+  scheduledAt    DateTime               @default(now()) @map("scheduled_at") @db.Timestamptz(6)
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy      String?                @map("created_by") @db.Uuid
+  updatedBy      String?                @map("updated_by") @db.Uuid
+  deletedAt      DateTime?              @map("deleted_at") @db.Timestamptz(6)
+  version        Int                    @default(1)
+
+  @@unique([organizationId, idempotencyKey], map: "uq_consolidation_jobs_idempotency")
+  @@index([status, scheduledAt], map: "idx_consolidation_jobs_status")
+  @@map("memory_consolidation_jobs")
+  @@schema("ai_memory")
+}
+
+// ─── AI Agents Models ──────────────────────────────────────────────────────
+
+model AgentDefinition {
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String?               @map("organization_id") @db.Uuid
+  name              String
+  slug              String
+  description       String?
+  role              AgentRole
+  definitionVersion Int                   @default(1) @map("definition_version")
+  status            AgentDefinitionStatus @default(draft)
+  modelId           String                @default("claude-sonnet-4") @map("model_id")
+  systemPrompt      String                @map("system_prompt")
+  systemPromptRef   String?               @map("system_prompt_ref")
+  allowedTools      String[]              @default([]) @map("allowed_tools")
+  constraints       Json                  @default("{}")
+  memoryConfig      Json                  @default("{}") @map("memory_config")
+  riskPolicy        Json                  @default("{}") @map("risk_policy")
+  isDefault         Boolean               @default(false) @map("is_default")
+  metadata          Json                  @default("{}")
+  publishedAt       DateTime?             @map("published_at") @db.Timestamptz(6)
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy         String?               @map("created_by") @db.Uuid
+  updatedBy         String?               @map("updated_by") @db.Uuid
+  deletedAt         DateTime?             @map("deleted_at") @db.Timestamptz(6)
+  version           Int                   @default(1)
+
+  runs AgentRun[]
+
+  @@unique([organizationId, slug, definitionVersion], map: "uq_agent_definitions_org_slug_version_active")
+  @@index([role, status], map: "idx_agent_definitions_role")
+  @@map("agent_definitions")
+  @@schema("ai_agents")
+}
+
+model AgentRun {
+  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId        String               @map("organization_id") @db.Uuid
+  agentDefinitionId     String               @map("agent_definition_id") @db.Uuid
+  definitionVersion     Int                  @map("definition_version")
+  invokerType           AgentInvokerType     @map("invoker_type")
+  invokerId             String?              @map("invoker_id") @db.Uuid
+  parentRunId           String?              @map("parent_run_id") @db.Uuid
+  conversationSessionId String?              @map("conversation_session_id") @db.Uuid
+  goal                  String
+  status                AgentRunStatus       @default(init)
+  statusReason          String?              @map("status_reason")
+  orchestrationPattern  OrchestrationPattern @default(sequential) @map("orchestration_pattern")
+  iterationCount        Int                  @default(0) @map("iteration_count")
+  maxIterations         Int                  @default(25) @map("max_iterations")
+  budgetCents           Int                  @default(50) @map("budget_cents")
+  costCents             Int                  @default(0) @map("cost_cents")
+  llmInputTokens        BigInt               @default(0) @map("llm_input_tokens")
+  llmOutputTokens       BigInt               @default(0) @map("llm_output_tokens")
+  startedAt             DateTime?            @map("started_at") @db.Timestamptz(6)
+  completedAt           DateTime?            @map("completed_at") @db.Timestamptz(6)
+  timeoutAt             DateTime?            @map("timeout_at") @db.Timestamptz(6)
+  resultSummary         String?              @map("result_summary")
+  resultPayload         Json                 @default("{}") @map("result_payload")
+  errorDetails          Json?                @map("error_details")
+  metadata              Json                 @default("{}")
+  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy             String?              @map("created_by") @db.Uuid
+  updatedBy             String?              @map("updated_by") @db.Uuid
+  deletedAt             DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  version               Int                  @default(1)
+
+  agentDefinition AgentDefinition  @relation(fields: [agentDefinitionId], references: [id])
+  parentRun       AgentRun?        @relation("AgentRunHierarchy", fields: [parentRunId], references: [id])
+  childRuns       AgentRun[]       @relation("AgentRunHierarchy")
+  steps           AgentRunStep[]
+  toolInvocations ToolInvocation[]
+  approvals       AgentApproval[]
+
+  @@index([organizationId, status, createdAt(sort: Desc)], map: "idx_agent_runs_organization_status")
+  @@index([organizationId, invokerType, invokerId], map: "idx_agent_runs_invoker")
+  @@index([parentRunId], map: "idx_agent_runs_parent")
+  @@map("agent_runs")
+  @@schema("ai_agents")
+}
+
+model AgentRunStep {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String             @map("organization_id") @db.Uuid
+  agentRunId      String             @map("agent_run_id") @db.Uuid
+  stepNumber      Int                @map("step_number")
+  stepType        AgentRunStepType   @map("step_type")
+  agentRole       String?            @map("agent_role")
+  status          AgentRunStepStatus @default(pending)
+  inputSummary    String?            @map("input_summary")
+  outputSummary   String?            @map("output_summary")
+  toolCallId      String?            @map("tool_call_id") @db.Uuid
+  llmInputTokens  Int                @default(0) @map("llm_input_tokens")
+  llmOutputTokens Int                @default(0) @map("llm_output_tokens")
+  costCents       Int                @default(0) @map("cost_cents")
+  durationMs      Int?               @map("duration_ms")
+  startedAt       DateTime?          @map("started_at") @db.Timestamptz(6)
+  completedAt     DateTime?          @map("completed_at") @db.Timestamptz(6)
+  metadata        Json               @default("{}")
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  version         Int                @default(1)
+
+  agentRun        AgentRun         @relation(fields: [agentRunId], references: [id])
+  toolInvocations ToolInvocation[]
+
+  @@unique([agentRunId, stepNumber], map: "uq_agent_run_steps_number")
+  @@index([agentRunId, stepNumber], map: "idx_agent_run_steps_run_id")
+  @@map("agent_run_steps")
+  @@schema("ai_agents")
+}
+
+model AgentTool {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String?              @map("organization_id") @db.Uuid
+  toolKey             String               @map("tool_key")
+  toolVersion         Int                  @default(1) @map("tool_version")
+  name                String
+  description         String
+  category            AgentToolCategory
+  riskLevel           AgentToolRiskLevel   @default(low) @map("risk_level")
+  inputSchema         Json                 @default("{}") @map("input_schema")
+  outputSchema        Json                 @default("{}") @map("output_schema")
+  handlerType         AgentToolHandlerType @default(internal_api) @map("handler_type")
+  handlerConfig       Json                 @default("{}") @map("handler_config")
+  permissionsRequired String[]             @default([]) @map("permissions_required")
+  isIdempotent        Boolean              @default(false) @map("is_idempotent")
+  rateLimitPerMin     Int?                 @default(60) @map("rate_limit_per_min")
+  isActive            Boolean              @default(true) @map("is_active")
+  metadata            Json                 @default("{}")
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy           String?              @map("created_by") @db.Uuid
+  updatedBy           String?              @map("updated_by") @db.Uuid
+  deletedAt           DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  version             Int                  @default(1)
+
+  invocations ToolInvocation[]
+
+  @@index([category, riskLevel], map: "idx_agent_tools_category")
+  @@map("agent_tools")
+  @@schema("ai_agents")
+}
+
+model ToolInvocation {
+  id                 String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String                @map("organization_id") @db.Uuid
+  agentRunId         String                @map("agent_run_id") @db.Uuid
+  agentRunStepId     String?               @map("agent_run_step_id") @db.Uuid
+  agentToolId        String                @map("agent_tool_id") @db.Uuid
+  toolKey            String                @map("tool_key")
+  toolVersion        Int                   @map("tool_version")
+  idempotencyKey     String                @map("idempotency_key")
+  status             ToolInvocationStatus
+  arguments          Json                  @default("{}")
+  argumentsRedacted  Json                  @default("{}") @map("arguments_redacted")
+  result             Json?
+  resultTruncated    Boolean               @default(false) @map("result_truncated")
+  errorMessage       String?               @map("error_message")
+  permissionCheck    PermissionCheckResult @default(passed) @map("permission_check")
+  durationMs         Int?                  @map("duration_ms")
+  costCents          Int                   @default(0) @map("cost_cents")
+  invokedAt          DateTime              @default(now()) @map("invoked_at") @db.Timestamptz(6)
+  completedAt        DateTime?             @map("completed_at") @db.Timestamptz(6)
+  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  agentRun     AgentRun      @relation(fields: [agentRunId], references: [id])
+  agentRunStep AgentRunStep? @relation(fields: [agentRunStepId], references: [id])
+  agentTool    AgentTool     @relation(fields: [agentToolId], references: [id])
+  approvals    AgentApproval[]
+
+  @@unique([organizationId, idempotencyKey], map: "uq_tool_invocations_idempotency")
+  @@index([agentRunId, invokedAt], map: "idx_tool_invocations_run")
+  @@index([organizationId, toolKey, invokedAt(sort: Desc)], map: "idx_tool_invocations_tool")
+  @@map("tool_invocations")
+  @@schema("ai_agents")
+}
+
+model AgentApproval {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String              @map("organization_id") @db.Uuid
+  agentRunId        String              @map("agent_run_id") @db.Uuid
+  toolInvocationId  String?             @map("tool_invocation_id") @db.Uuid
+  toolKey           String              @map("tool_key")
+  status            AgentApprovalStatus @default(pending)
+  reason            String
+  argumentsPreview  Json                @default("{}") @map("arguments_preview")
+  diffPreview       Json?               @map("diff_preview")
+  requestedAt       DateTime            @default(now()) @map("requested_at") @db.Timestamptz(6)
+  expiresAt         DateTime            @map("expires_at") @db.Timestamptz(6)
+  resolvedAt        DateTime?           @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy        String?             @map("resolved_by") @db.Uuid
+  resolutionNote    String?             @map("resolution_note")
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy         String?             @map("created_by") @db.Uuid
+  updatedBy         String?             @map("updated_by") @db.Uuid
+  deletedAt         DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  version           Int                 @default(1)
+
+  agentRun       AgentRun        @relation(fields: [agentRunId], references: [id])
+  toolInvocation ToolInvocation? @relation(fields: [toolInvocationId], references: [id])
+
+  @@index([organizationId, status, requestedAt], map: "idx_agent_approvals_pending")
+  @@index([agentRunId], map: "idx_agent_approvals_run")
+  @@map("agent_approvals")
+  @@schema("ai_agents")
+}
+
+model AgentBudget {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String              @map("organization_id") @db.Uuid
+  budgetScope       AgentBudgetScope    @map("budget_scope")
+  scopeId           String?             @map("scope_id") @db.Uuid
+  periodType        AgentBudgetPeriodType @default(monthly) @map("period_type")
+  budgetCents       Int                 @map("budget_cents")
+  consumedCents     Int                 @default(0) @map("consumed_cents")
+  warningThreshold  Decimal             @default(0.80) @map("warning_threshold") @db.Decimal(5, 2)
+  hardLimit         Boolean             @default(true) @map("hard_limit")
+  periodStart       DateTime            @map("period_start") @db.Timestamptz(6)
+  periodEnd         DateTime?           @map("period_end") @db.Timestamptz(6)
+  isActive          Boolean             @default(true) @map("is_active")
+  metadata          Json                @default("{}")
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy         String?             @map("created_by") @db.Uuid
+  updatedBy         String?             @map("updated_by") @db.Uuid
+  deletedAt         DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  version           Int                 @default(1)
+
+  @@index([organizationId, budgetScope], map: "idx_agent_budgets_org_scope")
+  @@map("agent_budgets")
+  @@schema("ai_agents")
+}
