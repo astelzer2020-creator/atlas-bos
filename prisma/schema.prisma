@@ -1,0 +1,14 @@
+// Atlas BOS — Prisma schema (Phase 6: platform core)
+// DDL source of truth: packages/database/db/migrations/ (Flyway)
+// Domain models: prisma/models/platform.prisma
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../packages/database/node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["atlas_core"]
+}

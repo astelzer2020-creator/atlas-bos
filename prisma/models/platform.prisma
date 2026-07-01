@@ -1,0 +1,817 @@
+// Atlas BOS — Platform, Identity, and Authorization Models
+// Documents: ATLAS-DB-02, ATLAS-DB-03, ATLAS-DB-04
+
+enum OrganizationStatus {
+  PROVISIONING
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+
+  @@schema("atlas_core")
+}
+
+enum IsolationTier {
+  SHARED_RLS
+  DEDICATED_SCHEMA
+  DEDICATED_CLUSTER
+
+  @@schema("atlas_core")
+}
+
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+  REMOVED
+
+  @@schema("atlas_core")
+}
+
+enum TeamMemberRole {
+  LEAD
+  MEMBER
+
+  @@schema("atlas_core")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  REVOKED
+
+  @@schema("atlas_core")
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+
+  @@schema("atlas_core")
+}
+
+enum UserType {
+  HUMAN
+  SERVICE_ACCOUNT
+  AGENT
+
+  @@schema("atlas_core")
+}
+
+enum CredentialType {
+  PASSWORD
+  OAUTH_GOOGLE
+  OAUTH_MICROSOFT
+  SAML
+  WEBAUTHN
+
+  @@schema("atlas_core")
+}
+
+enum MfaDeviceType {
+  TOTP
+  WEBAUTHN
+  SMS
+
+  @@schema("atlas_core")
+}
+
+enum SsoProtocol {
+  SAML
+  OIDC
+
+  @@schema("atlas_core")
+}
+
+enum ApiKeyStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+
+  @@schema("atlas_core")
+}
+
+enum PrincipalType {
+  USER
+  SERVICE_ACCOUNT
+  API_KEY
+  AGENT
+  OAUTH_APP
+
+  @@schema("atlas_core")
+}
+
+enum ScopeType {
+  ORGANIZATION
+  WORKSPACE
+  TEAM
+  RESOURCE
+
+  @@schema("atlas_core")
+}
+
+enum PermissionEffect {
+  ALLOW
+  DENY
+
+  @@schema("atlas_core")
+}
+
+enum PolicyEffect {
+  ALLOW
+  DENY
+
+  @@schema("atlas_core")
+}
+
+enum PolicyBindType {
+  ORGANIZATION
+  WORKSPACE
+  TEAM
+  ROLE
+  RESOURCE_TYPE
+
+  @@schema("atlas_core")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PLATFORM CORE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Workspace {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug        String
+  name        String
+  displayName String?   @map("display_name")
+  ownerUserId String    @map("owner_user_id") @db.Uuid
+  planId      String?   @map("plan_id") @db.Uuid
+  settings    Json      @default("{}")
+  metadata    Json      @default("{}")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdById String?   @map("created_by_id") @db.Uuid
+  updatedById String?   @map("updated_by_id") @db.Uuid
+  version     Int       @default(1)
+
+  owner         User              @relation("WorkspaceOwner", fields: [ownerUserId], references: [id])
+  organizations Organization[]
+  members       WorkspaceMember[]
+  sessions      Session[]
+
+  @@index([ownerUserId], map: "idx_workspaces_owner_user_id")
+  @@index([slug], map: "idx_workspaces_slug")
+  @@map("workspaces")
+  @@schema("atlas_core")
+}
+
+model Organization {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId    String             @map("workspace_id") @db.Uuid
+  slug           String
+  name           String
+  displayName    String?            @map("display_name")
+  legalName      String?            @map("legal_name")
+  status         OrganizationStatus @default(PROVISIONING)
+  isolationTier  IsolationTier      @default(SHARED_RLS) @map("isolation_tier")
+  timezone       String             @default("UTC")
+  locale         String             @default("en-US")
+  currencyCode   String             @default("USD") @map("currency_code") @db.Char(3)
+  dataRegion     String             @default("us-east-1") @map("data_region")
+  settings       Json               @default("{}")
+  metadata       Json               @default("{}")
+  provisionedAt  DateTime?          @map("provisioned_at") @db.Timestamptz(6)
+  suspendedAt    DateTime?          @map("suspended_at") @db.Timestamptz(6)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?            @map("created_by_id") @db.Uuid
+  updatedById    String?            @map("updated_by_id") @db.Uuid
+  version        Int                @default(1)
+
+  workspace         Workspace            @relation(fields: [workspaceId], references: [id])
+  teams             Team[]
+  members           OrganizationMember[]
+  teamMembers       TeamMember[]
+  invitations       Invitation[]
+  roles             Role[]
+  rolePermissions   RolePermission[]
+  roleAssignments   RoleAssignment[]
+  resourceGrants    ResourceGrant[]
+  policies          Policy[]
+  policyBindings    PolicyBinding[]
+  ssoConnections    SsoConnection[]
+  apiKeys           ApiKey[]
+  sessions          Session[]
+
+  @@unique([workspaceId, slug], map: "uq_organizations_workspace_slug_active")
+  @@index([workspaceId], map: "idx_organizations_workspace_id")
+  @@index([status], map: "idx_organizations_status")
+  @@index([dataRegion], map: "idx_organizations_data_region")
+  @@map("organizations")
+  @@schema("atlas_core")
+}
+
+model Team {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  parentTeamId   String?   @map("parent_team_id") @db.Uuid
+  slug           String
+  name           String
+  description    String?
+  settings       Json      @default("{}")
+  metadata       Json      @default("{}")
+  isDefault      Boolean   @default(false) @map("is_default")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?   @map("created_by_id") @db.Uuid
+  updatedById    String?   @map("updated_by_id") @db.Uuid
+  version        Int       @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  parentTeam   Team?        @relation("TeamHierarchy", fields: [parentTeamId], references: [id])
+  childTeams   Team[]       @relation("TeamHierarchy")
+  members      TeamMember[]
+  invitations  Invitation[]
+
+  @@unique([organizationId, slug], map: "uq_teams_org_slug_active")
+  @@unique([id, organizationId], map: "uq_teams_id_organization")
+  @@index([organizationId], map: "idx_teams_organization_id")
+  @@index([parentTeamId], map: "idx_teams_parent_team_id")
+  @@map("teams")
+  @@schema("atlas_core")
+}
+
+model WorkspaceMember {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String           @map("workspace_id") @db.Uuid
+  userId      String           @map("user_id") @db.Uuid
+  status      MembershipStatus @default(ACTIVE)
+  isAdmin     Boolean          @default(false) @map("is_admin")
+  joinedAt    DateTime         @default(now()) @map("joined_at") @db.Timestamptz(6)
+  removedAt   DateTime?        @map("removed_at") @db.Timestamptz(6)
+  metadata    Json             @default("{}")
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdById String?          @map("created_by_id") @db.Uuid
+  updatedById String?          @map("updated_by_id") @db.Uuid
+  version     Int              @default(1)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([workspaceId, userId], map: "uq_workspace_members_active")
+  @@index([userId], map: "idx_workspace_members_user_id")
+  @@index([workspaceId], map: "idx_workspace_members_workspace_id")
+  @@map("workspace_members")
+  @@schema("atlas_core")
+}
+
+model OrganizationMember {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  status         MembershipStatus @default(ACTIVE)
+  title          String?
+  department     String?
+  isOwner        Boolean          @default(false) @map("is_owner")
+  isBillingAdmin Boolean          @default(false) @map("is_billing_admin")
+  joinedAt       DateTime         @default(now()) @map("joined_at") @db.Timestamptz(6)
+  removedAt      DateTime?        @map("removed_at") @db.Timestamptz(6)
+  lastActiveAt   DateTime?        @map("last_active_at") @db.Timestamptz(6)
+  metadata       Json             @default("{}")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?          @map("created_by_id") @db.Uuid
+  updatedById    String?          @map("updated_by_id") @db.Uuid
+  version        Int              @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId], map: "uq_organization_members_active")
+  @@index([userId], map: "idx_organization_members_user_id")
+  @@index([organizationId], map: "idx_organization_members_organization_id")
+  @@map("organization_members")
+  @@schema("atlas_core")
+}
+
+model TeamMember {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  teamId         String         @map("team_id") @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  role           TeamMemberRole @default(MEMBER)
+  joinedAt       DateTime       @default(now()) @map("joined_at") @db.Timestamptz(6)
+  metadata       Json           @default("{}")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?        @map("created_by_id") @db.Uuid
+  updatedById    String?        @map("updated_by_id") @db.Uuid
+  version        Int            @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  team         Team         @relation(fields: [teamId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([teamId, userId], map: "uq_team_members_active")
+  @@index([organizationId], map: "idx_team_members_organization_id")
+  @@index([userId], map: "idx_team_members_user_id")
+  @@index([teamId], map: "idx_team_members_team_id")
+  @@map("team_members")
+  @@schema("atlas_core")
+}
+
+model Invitation {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  teamId         String?          @map("team_id") @db.Uuid
+  email          String           @db.Citext
+  invitedUserId  String?          @map("invited_user_id") @db.Uuid
+  invitedById    String           @map("invited_by_id") @db.Uuid
+  status         InvitationStatus @default(PENDING)
+  roleId         String?          @map("role_id") @db.Uuid
+  tokenHash      String           @map("token_hash")
+  message        String?
+  expiresAt      DateTime         @default(dbgenerated("now() + interval '7 days'")) @map("expires_at") @db.Timestamptz(6)
+  acceptedAt     DateTime?        @map("accepted_at") @db.Timestamptz(6)
+  declinedAt     DateTime?        @map("declined_at") @db.Timestamptz(6)
+  revokedAt      DateTime?        @map("revoked_at") @db.Timestamptz(6)
+  metadata       Json             @default("{}")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?          @map("created_by_id") @db.Uuid
+  updatedById    String?          @map("updated_by_id") @db.Uuid
+  version        Int              @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  team         Team?        @relation(fields: [teamId], references: [id])
+  invitedUser  User?        @relation("InvitationRecipient", fields: [invitedUserId], references: [id])
+  invitedBy    User         @relation("InvitationSender", fields: [invitedById], references: [id])
+  role         Role?        @relation(fields: [roleId], references: [id])
+
+  @@index([organizationId], map: "idx_invitations_organization_id")
+  @@index([email], map: "idx_invitations_email")
+  @@index([tokenHash], map: "idx_invitations_token_hash")
+  @@map("invitations")
+  @@schema("atlas_core")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// IDENTITY & AUTHENTICATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model User {
+  id                  String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email               String     @unique @db.Citext
+  emailVerified       Boolean    @default(false) @map("email_verified")
+  emailVerifiedAt     DateTime?  @map("email_verified_at") @db.Timestamptz(6)
+  passwordHash        String?    @map("password_hash")
+  type                UserType   @default(HUMAN)
+  status              UserStatus @default(PENDING_VERIFICATION)
+  displayName         String?    @map("display_name")
+  avatarUrl           String?    @map("avatar_url")
+  locale              String     @default("en-US")
+  timezone            String     @default("UTC")
+  lastLoginAt         DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  lastLoginIp         String?    @map("last_login_ip")
+  failedLoginAttempts Int        @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime?  @map("locked_until") @db.Timestamptz(6)
+  passwordChangedAt   DateTime?  @map("password_changed_at") @db.Timestamptz(6)
+  metadata            Json       @default("{}")
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt           DateTime?  @map("deleted_at") @db.Timestamptz(6)
+  createdById         String?    @map("created_by_id") @db.Uuid
+  updatedById         String?    @map("updated_by_id") @db.Uuid
+  version             Int        @default(1)
+
+  profile              UserProfile?
+  credentials          UserCredential[]
+  sessions             Session[]
+  refreshTokens        RefreshToken[]
+  mfaDevices           MfaDevice[]
+  passwordResetTokens  PasswordResetToken[]
+  ownedWorkspaces      Workspace[]          @relation("WorkspaceOwner")
+  workspaceMemberships WorkspaceMember[]
+  organizationMemberships OrganizationMember[]
+  teamMemberships      TeamMember[]
+  invitationsReceived  Invitation[]         @relation("InvitationRecipient")
+  invitationsSent      Invitation[]         @relation("InvitationSender")
+  apiKeys              ApiKey[]
+
+  @@index([status], map: "idx_users_status")
+  @@index([type], map: "idx_users_type")
+  @@map("users")
+  @@schema("atlas_core")
+}
+
+model UserProfile {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String    @unique @map("user_id") @db.Uuid
+  firstName            String?   @map("first_name")
+  lastName             String?   @map("last_name")
+  phone                String?
+  jobTitle             String?   @map("job_title")
+  company              String?
+  bio                  String?
+  avatarUrl            String?   @map("avatar_url")
+  preferences          Json      @default("{}")
+  notificationSettings Json      @default("{\"email\": true, \"push\": true, \"in_app\": true}") @map("notification_settings")
+  metadata             Json      @default("{}")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt            DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdById          String?   @map("created_by_id") @db.Uuid
+  updatedById          String?   @map("updated_by_id") @db.Uuid
+  version              Int       @default(1)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("user_profiles")
+  @@schema("atlas_core")
+}
+
+model UserCredential {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  credentialType CredentialType @map("credential_type")
+  providerId     String?        @map("provider_id")
+  providerEmail  String?        @map("provider_email") @db.Citext
+  credentialData Json           @default("{}") @map("credential_data")
+  isPrimary      Boolean        @default(false) @map("is_primary")
+  lastUsedAt     DateTime?      @map("last_used_at") @db.Timestamptz(6)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  version        Int            @default(1)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "idx_user_credentials_user_id")
+  @@map("user_credentials")
+  @@schema("atlas_core")
+}
+
+model Session {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  organizationId    String?   @map("organization_id") @db.Uuid
+  workspaceId       String?   @map("workspace_id") @db.Uuid
+  ipAddress         String?   @map("ip_address")
+  userAgent         String?   @map("user_agent")
+  deviceFingerprint String?   @map("device_fingerprint")
+  mfaVerified       Boolean   @default(false) @map("mfa_verified")
+  mfaVerifiedAt     DateTime? @map("mfa_verified_at") @db.Timestamptz(6)
+  isRemembered      Boolean   @default(false) @map("is_remembered")
+  expiresAt         DateTime  @map("expires_at") @db.Timestamptz(6)
+  lastActivityAt    DateTime  @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  revoked           Boolean   @default(false)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedReason     String?   @map("revoked_reason")
+  metadata          Json      @default("{}")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version           Int       @default(1)
+
+  user          User           @relation(fields: [userId], references: [id])
+  organization  Organization?  @relation(fields: [organizationId], references: [id])
+  workspace     Workspace?     @relation(fields: [workspaceId], references: [id])
+  refreshTokens RefreshToken[]
+
+  @@index([userId], map: "idx_sessions_user_id")
+  @@index([organizationId], map: "idx_sessions_organization_id")
+  @@index([expiresAt], map: "idx_sessions_expires_at")
+  @@map("sessions")
+  @@schema("atlas_core")
+}
+
+model RefreshToken {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId     String    @map("session_id") @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  tokenHash     String    @unique @map("token_hash")
+  familyId      String    @default(dbgenerated("gen_random_uuid()")) @map("family_id") @db.Uuid
+  parentTokenId String?   @map("parent_token_id") @db.Uuid
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(6)
+  issuedAt      DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  usedAt        DateTime? @map("used_at") @db.Timestamptz(6)
+  revoked       Boolean   @default(false)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedReason String?   @map("revoked_reason")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  session     Session        @relation(fields: [sessionId], references: [id])
+  user        User           @relation(fields: [userId], references: [id])
+  parentToken RefreshToken?  @relation("TokenFamily", fields: [parentTokenId], references: [id])
+  childTokens RefreshToken[] @relation("TokenFamily")
+
+  @@index([sessionId], map: "idx_refresh_tokens_session_id")
+  @@index([familyId], map: "idx_refresh_tokens_family_id")
+  @@index([userId], map: "idx_refresh_tokens_user_id")
+  @@map("refresh_tokens")
+  @@schema("atlas_core")
+}
+
+model MfaDevice {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String        @map("user_id") @db.Uuid
+  deviceType      MfaDeviceType @map("device_type")
+  name            String
+  credentialId    String?       @map("credential_id")
+  secretEncrypted String?       @map("secret_encrypted")
+  phoneNumber     String?       @map("phone_number")
+  counter         BigInt        @default(0)
+  isPrimary       Boolean       @default(false) @map("is_primary")
+  isVerified      Boolean       @default(false) @map("is_verified")
+  verifiedAt      DateTime?     @map("verified_at") @db.Timestamptz(6)
+  lastUsedAt      DateTime?     @map("last_used_at") @db.Timestamptz(6)
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  version         Int           @default(1)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "idx_mfa_devices_user_id")
+  @@map("mfa_devices")
+  @@schema("atlas_core")
+}
+
+model SsoConnection {
+  id                   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String      @map("organization_id") @db.Uuid
+  protocol             SsoProtocol
+  name                 String
+  idpEntityId          String      @map("idp_entity_id")
+  idpSsoUrl            String      @map("idp_sso_url")
+  idpCertificate       String?     @map("idp_certificate")
+  spEntityId           String      @map("sp_entity_id")
+  acsUrl               String      @map("acs_url")
+  oidcIssuer           String?     @map("oidc_issuer")
+  oidcClientId         String?     @map("oidc_client_id")
+  oidcClientSecretEnc  String?     @map("oidc_client_secret_enc")
+  attributeMapping     Json        @default("{\"email\": \"email\", \"first_name\": \"given_name\", \"last_name\": \"family_name\", \"groups\": \"groups\"}") @map("attribute_mapping")
+  jitProvisioning      Boolean     @default(true) @map("jit_provisioning")
+  defaultRoleId        String?     @map("default_role_id") @db.Uuid
+  mfaBypass            Boolean     @default(false) @map("mfa_bypass")
+  isActive             Boolean     @default(true) @map("is_active")
+  metadata             Json        @default("{}")
+  createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt            DateTime?   @map("deleted_at") @db.Timestamptz(6)
+  createdById          String?     @map("created_by_id") @db.Uuid
+  updatedById          String?     @map("updated_by_id") @db.Uuid
+  version              Int         @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, idpEntityId], map: "uq_sso_connections_org_idp")
+  @@index([organizationId], map: "idx_sso_connections_organization_id")
+  @@map("sso_connections")
+  @@schema("atlas_core")
+}
+
+model ApiKey {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  name           String
+  description    String?
+  keyPrefix      String       @unique @map("key_prefix")
+  keyHash        String       @map("key_hash")
+  scopes         String[]
+  status         ApiKeyStatus @default(ACTIVE)
+  expiresAt      DateTime?    @map("expires_at") @db.Timestamptz(6)
+  lastUsedAt     DateTime?    @map("last_used_at") @db.Timestamptz(6)
+  lastUsedIp     String?      @map("last_used_ip")
+  rateLimitTier  String       @default("standard") @map("rate_limit_tier")
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?      @map("created_by_id") @db.Uuid
+  updatedById    String?      @map("updated_by_id") @db.Uuid
+  version        Int          @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId], map: "idx_api_keys_organization_id")
+  @@index([userId], map: "idx_api_keys_user_id")
+  @@index([keyHash], map: "idx_api_keys_hash")
+  @@map("api_keys")
+  @@schema("atlas_core")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @default(dbgenerated("now() + interval '1 hour'")) @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  ipAddress String?   @map("ip_address")
+  userAgent String?   @map("user_agent")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "idx_password_reset_user_id")
+  @@map("password_reset_tokens")
+  @@schema("atlas_core")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTHORIZATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Permission {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code            String   @unique
+  module          String
+  resource        String
+  action          String
+  description     String?
+  isSystem        Boolean  @default(true) @map("is_system")
+  isDeprecated    Boolean  @default(false) @map("is_deprecated")
+  deprecatedAt    DateTime? @map("deprecated_at") @db.Timestamptz(6)
+  replacementCode String?  @map("replacement_code")
+  metadata        Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  rolePermissions RolePermission[]
+
+  @@index([module], map: "idx_permissions_module")
+  @@index([module, resource], map: "idx_permissions_resource")
+  @@map("permissions")
+  @@schema("atlas_core")
+}
+
+model Role {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  slug           String
+  name           String
+  description    String?
+  scopeType      ScopeType @default(ORGANIZATION) @map("scope_type")
+  isSystem       Boolean   @default(false) @map("is_system")
+  isDefault      Boolean   @default(false) @map("is_default")
+  priority       Int       @default(0)
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?   @map("created_by_id") @db.Uuid
+  updatedById    String?   @map("updated_by_id") @db.Uuid
+  version        Int       @default(1)
+
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  permissions     RolePermission[]
+  assignments     RoleAssignment[]
+  invitations     Invitation[]
+
+  @@unique([organizationId, slug], map: "uq_roles_org_slug_active")
+  @@unique([id, organizationId], map: "uq_roles_id_organization")
+  @@index([organizationId], map: "idx_roles_organization_id")
+  @@map("roles")
+  @@schema("atlas_core")
+}
+
+model RolePermission {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  roleId         String           @map("role_id") @db.Uuid
+  permissionId   String           @map("permission_id") @db.Uuid
+  effect         PermissionEffect @default(ALLOW)
+  conditions     Json?
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById    String?          @map("created_by_id") @db.Uuid
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  role         Role         @relation(fields: [roleId], references: [id])
+  permission   Permission   @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId], map: "uq_role_permissions_natural")
+  @@index([organizationId], map: "idx_role_permissions_organization_id")
+  @@index([roleId], map: "idx_role_permissions_role_id")
+  @@map("role_permissions")
+  @@schema("atlas_core")
+}
+
+model RoleAssignment {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  roleId         String        @map("role_id") @db.Uuid
+  principalType  PrincipalType @map("principal_type")
+  principalId    String        @map("principal_id") @db.Uuid
+  scopeType      ScopeType     @default(ORGANIZATION) @map("scope_type")
+  scopeId        String?       @map("scope_id") @db.Uuid
+  grantedById    String?       @map("granted_by_id") @db.Uuid
+  grantedAt      DateTime      @default(now()) @map("granted_at") @db.Timestamptz(6)
+  expiresAt      DateTime?     @map("expires_at") @db.Timestamptz(6)
+  revokedAt      DateTime?     @map("revoked_at") @db.Timestamptz(6)
+  revokedById    String?       @map("revoked_by_id") @db.Uuid
+  revokeReason   String?       @map("revoke_reason")
+  isActive       Boolean       @default(true) @map("is_active")
+  metadata       Json          @default("{}")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  version        Int           @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  role         Role         @relation(fields: [roleId], references: [id])
+
+  @@index([organizationId], map: "idx_role_assignments_organization_id")
+  @@index([principalType, principalId], map: "idx_role_assignments_principal")
+  @@index([scopeType, scopeId], map: "idx_role_assignments_scope")
+  @@index([roleId], map: "idx_role_assignments_role_id")
+  @@map("role_assignments")
+  @@schema("atlas_core")
+}
+
+model ResourceGrant {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  resourceType   String           @map("resource_type")
+  resourceId     String           @map("resource_id") @db.Uuid
+  principalType  PrincipalType    @map("principal_type")
+  principalId    String           @map("principal_id") @db.Uuid
+  permission     String
+  effect         PermissionEffect @default(ALLOW)
+  grantedById    String?          @map("granted_by_id") @db.Uuid
+  grantedAt      DateTime         @default(now()) @map("granted_at") @db.Timestamptz(6)
+  expiresAt      DateTime?        @map("expires_at") @db.Timestamptz(6)
+  revokedAt      DateTime?        @map("revoked_at") @db.Timestamptz(6)
+  isActive       Boolean          @default(true) @map("is_active")
+  metadata       Json             @default("{}")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  version        Int              @default(1)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId], map: "idx_resource_grants_organization_id")
+  @@index([organizationId, resourceType, resourceId], map: "idx_resource_grants_resource")
+  @@index([principalType, principalId], map: "idx_resource_grants_principal")
+  @@map("resource_grants")
+  @@schema("atlas_core")
+}
+
+model Policy {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  effect         PolicyEffect @default(DENY)
+  priority       Int          @default(0)
+  conditions     Json         @default("{}")
+  regoSource     String?      @map("rego_source")
+  regoVersion    String       @default("v1") @map("rego_version")
+  isSystem       Boolean      @default(false) @map("is_system")
+  isActive       Boolean      @default(true) @map("is_active")
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  createdById    String?      @map("created_by_id") @db.Uuid
+  updatedById    String?      @map("updated_by_id") @db.Uuid
+  version        Int          @default(1)
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  bindings     PolicyBinding[]
+
+  @@unique([organizationId, name], map: "uq_policies_org_name_active")
+  @@index([organizationId], map: "idx_policies_organization_id")
+  @@map("policies")
+  @@schema("atlas_core")
+}
+
+model PolicyBinding {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  policyId       String         @map("policy_id") @db.Uuid
+  bindType       PolicyBindType @map("bind_type")
+  bindId         String?        @map("bind_id") @db.Uuid
+  isActive       Boolean        @default(true) @map("is_active")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById    String?        @map("created_by_id") @db.Uuid
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  policy       Policy       @relation(fields: [policyId], references: [id])
+
+  @@index([organizationId], map: "idx_policy_bindings_organization_id")
+  @@index([policyId], map: "idx_policy_bindings_policy_id")
+  @@index([bindType, bindId], map: "idx_policy_bindings_bind")
+  @@map("policy_bindings")
+  @@schema("atlas_core")
+}

@@ -1,0 +1,361 @@
+// Projects bounded context — schema: projects
+// Requires: atlas_core Organization, User, Workspace (platform-core.prisma)
+
+enum ProjectStatus {
+  planning
+  active
+  on_hold
+  completed
+  cancelled
+  archived
+
+  @@schema("projects")
+}
+
+enum ProjectPriority {
+  low
+  medium
+  high
+  critical
+
+  @@schema("projects")
+}
+
+enum ProjectVisibility {
+  private
+  team
+  organization
+
+  @@schema("projects")
+}
+
+enum ProjectMemberRole {
+  owner
+  manager
+  member
+  viewer
+  client
+
+  @@schema("projects")
+}
+
+enum TaskStatus {
+  backlog
+  todo
+  in_progress
+  in_review
+  blocked
+  done
+  cancelled
+
+  @@schema("projects")
+}
+
+enum TaskType {
+  task
+  bug
+  story
+  epic
+  subtask
+
+  @@schema("projects")
+}
+
+enum TaskDependencyType {
+  finish_to_start
+  start_to_start
+  finish_to_finish
+  start_to_finish
+
+  @@schema("projects")
+}
+
+enum MilestoneStatus {
+  pending
+  in_progress
+  completed
+  missed
+  cancelled
+
+  @@schema("projects")
+}
+
+enum SprintStatus {
+  planned
+  active
+  completed
+  cancelled
+
+  @@schema("projects")
+}
+
+enum TimeEntryApprovalStatus {
+  pending
+  approved
+  rejected
+
+  @@schema("projects")
+}
+
+model Project {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String            @map("organization_id") @db.Uuid
+  workspaceId      String?           @map("workspace_id") @db.Uuid
+  templateId       String?           @map("template_id") @db.Uuid
+  opportunityId    String?           @map("opportunity_id") @db.Uuid
+  orderId          String?           @map("order_id") @db.Uuid
+  code             String
+  name             String
+  description      String?
+  status           ProjectStatus     @default(planning)
+  priority         ProjectPriority   @default(medium)
+  visibility       ProjectVisibility @default(team)
+  startDate        DateTime?         @map("start_date") @db.Date
+  targetEndDate    DateTime?         @map("target_end_date") @db.Date
+  actualEndDate    DateTime?         @map("actual_end_date") @db.Date
+  budgetHours      Decimal?          @map("budget_hours") @db.Decimal(12, 2)
+  budgetAmount     Decimal?          @map("budget_amount") @db.Decimal(18, 4)
+  budgetCurrency   String?           @default("USD") @map("budget_currency") @db.Char(3)
+  progressPercent  Decimal           @default(0) @map("progress_percent") @db.Decimal(5, 2)
+  settings         Json              @default("{}")
+  metadata         Json              @default("{}")
+  externalId       String?           @map("external_id")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy        String?           @map("created_by") @db.Uuid
+  updatedBy        String?           @map("updated_by") @db.Uuid
+  deletedAt        DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  version          Int               @default(1)
+
+  template      ProjectTemplate? @relation(fields: [templateId], references: [id])
+  members       ProjectMember[]
+  tasks         Task[]
+  milestones    Milestone[]
+  sprints       Sprint[]
+  timeEntries   TimeEntry[]
+
+  @@unique([organizationId, code], map: "uq_projects_org_code_active")
+  @@index([organizationId], map: "idx_projects_organization_id")
+  @@index([organizationId, status], map: "idx_projects_org_status_active")
+  @@index([workspaceId], map: "idx_projects_workspace_id")
+  @@index([organizationId, opportunityId], map: "idx_projects_opportunity_id")
+  @@map("projects")
+  @@schema("projects")
+}
+
+model ProjectMember {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String            @map("organization_id") @db.Uuid
+  projectId          String            @map("project_id") @db.Uuid
+  userId             String            @map("user_id") @db.Uuid
+  role               ProjectMemberRole @default(member)
+  allocationPercent  Decimal?          @default(100) @map("allocation_percent") @db.Decimal(5, 2)
+  hourlyRate         Decimal?          @map("hourly_rate") @db.Decimal(12, 4)
+  hourlyRateCurrency String?           @default("USD") @map("hourly_rate_currency") @db.Char(3)
+  joinedAt           DateTime          @default(now()) @map("joined_at") @db.Timestamptz(6)
+  leftAt             DateTime?         @map("left_at") @db.Timestamptz(6)
+  isActive           Boolean           @default(true) @map("is_active")
+  permissions        Json              @default("{}")
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy          String?           @map("created_by") @db.Uuid
+  updatedBy          String?           @map("updated_by") @db.Uuid
+  deletedAt          DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  version            Int               @default(1)
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@unique([organizationId, projectId, userId], map: "uq_project_members_project_user_active")
+  @@index([organizationId, userId], map: "idx_project_members_user_id")
+  @@map("project_members")
+  @@schema("projects")
+}
+
+model Task {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  projectId      String       @map("project_id") @db.Uuid
+  parentTaskId   String?      @map("parent_task_id") @db.Uuid
+  sprintId       String?      @map("sprint_id") @db.Uuid
+  milestoneId    String?      @map("milestone_id") @db.Uuid
+  assigneeId     String?      @map("assignee_id") @db.Uuid
+  reporterId     String?      @map("reporter_id") @db.Uuid
+  title          String
+  description    String?
+  status         TaskStatus   @default(todo)
+  priority       ProjectPriority @default(medium)
+  taskType       TaskType     @default(task) @map("task_type")
+  sortOrder      Int          @default(0) @map("sort_order")
+  estimateHours  Decimal?     @map("estimate_hours") @db.Decimal(10, 2)
+  actualHours    Decimal      @default(0) @map("actual_hours") @db.Decimal(10, 2)
+  storyPoints    Decimal?     @map("story_points") @db.Decimal(6, 1)
+  dueDate        DateTime?    @map("due_date") @db.Timestamptz(6)
+  startedAt      DateTime?    @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime?    @map("completed_at") @db.Timestamptz(6)
+  labels         String[]     @default([])
+  customFields   Json         @default("{}") @map("custom_fields")
+  metadata       Json         @default("{}")
+  externalId     String?      @map("external_id")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy      String?      @map("created_by") @db.Uuid
+  updatedBy      String?      @map("updated_by") @db.Uuid
+  deletedAt      DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  version        Int          @default(1)
+
+  project            Project           @relation(fields: [projectId], references: [id])
+  parentTask         Task?             @relation("TaskHierarchy", fields: [parentTaskId], references: [id])
+  childTasks         Task[]            @relation("TaskHierarchy")
+  sprint             Sprint?           @relation(fields: [sprintId], references: [id])
+  milestone          Milestone?        @relation(fields: [milestoneId], references: [id])
+  predecessorDeps    TaskDependency[]  @relation("PredecessorTask")
+  successorDeps      TaskDependency[]  @relation("SuccessorTask")
+  timeEntries        TimeEntry[]
+
+  @@index([organizationId, projectId], map: "idx_tasks_project_id")
+  @@index([organizationId, assigneeId, status], map: "idx_tasks_assignee_id")
+  @@index([parentTaskId], map: "idx_tasks_parent_task_id")
+  @@index([sprintId], map: "idx_tasks_sprint_id")
+  @@index([organizationId, dueDate], map: "idx_tasks_due_date")
+  @@map("tasks")
+  @@schema("projects")
+}
+
+model TaskDependency {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String             @map("organization_id") @db.Uuid
+  predecessorTaskId String             @map("predecessor_task_id") @db.Uuid
+  successorTaskId   String             @map("successor_task_id") @db.Uuid
+  dependencyType    TaskDependencyType @default(finish_to_start) @map("dependency_type")
+  lagDays           Int                @default(0) @map("lag_days")
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy         String?            @map("created_by") @db.Uuid
+  updatedBy         String?            @map("updated_by") @db.Uuid
+  deletedAt         DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  version           Int                @default(1)
+
+  predecessorTask Task @relation("PredecessorTask", fields: [predecessorTaskId], references: [id])
+  successorTask   Task @relation("SuccessorTask", fields: [successorTaskId], references: [id])
+
+  @@unique([organizationId, predecessorTaskId, successorTaskId, dependencyType], map: "uq_task_dependencies_edge_active")
+  @@index([successorTaskId], map: "idx_task_dependencies_successor")
+  @@map("task_dependencies")
+  @@schema("projects")
+}
+
+model Milestone {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String          @map("organization_id") @db.Uuid
+  projectId      String          @map("project_id") @db.Uuid
+  name           String
+  description    String?
+  status         MilestoneStatus @default(pending)
+  targetDate     DateTime        @map("target_date") @db.Date
+  completedAt    DateTime?       @map("completed_at") @db.Timestamptz(6)
+  sortOrder      Int             @default(0) @map("sort_order")
+  metadata       Json            @default("{}")
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy      String?         @map("created_by") @db.Uuid
+  updatedBy      String?         @map("updated_by") @db.Uuid
+  deletedAt      DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  version        Int             @default(1)
+
+  project Project @relation(fields: [projectId], references: [id])
+  tasks   Task[]
+
+  @@index([organizationId, projectId], map: "idx_milestones_project_id")
+  @@index([organizationId, targetDate], map: "idx_milestones_target_date")
+  @@map("milestones")
+  @@schema("projects")
+}
+
+model Sprint {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  projectId      String       @map("project_id") @db.Uuid
+  name           String
+  goal           String?
+  status         SprintStatus @default(planned)
+  startDate      DateTime     @map("start_date") @db.Date
+  endDate        DateTime     @map("end_date") @db.Date
+  completedAt    DateTime?    @map("completed_at") @db.Timestamptz(6)
+  velocityPoints Decimal?     @map("velocity_points") @db.Decimal(8, 1)
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy      String?      @map("created_by") @db.Uuid
+  updatedBy      String?      @map("updated_by") @db.Uuid
+  deletedAt      DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  version        Int          @default(1)
+
+  project Project @relation(fields: [projectId], references: [id])
+  tasks   Task[]
+
+  @@unique([organizationId, projectId, name], map: "uq_sprints_project_name_active")
+  @@index([organizationId, projectId], map: "idx_sprints_project_id")
+  @@map("sprints")
+  @@schema("projects")
+}
+
+model TimeEntry {
+  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String                  @map("organization_id") @db.Uuid
+  projectId          String                  @map("project_id") @db.Uuid
+  taskId             String?                 @map("task_id") @db.Uuid
+  userId             String                  @map("user_id") @db.Uuid
+  description        String?
+  startedAt          DateTime                @map("started_at") @db.Timestamptz(6)
+  endedAt            DateTime?               @map("ended_at") @db.Timestamptz(6)
+  durationMinutes    Int                     @map("duration_minutes")
+  isBillable         Boolean                 @default(true) @map("is_billable")
+  hourlyRate         Decimal?                @map("hourly_rate") @db.Decimal(12, 4)
+  hourlyRateCurrency String?                 @default("USD") @map("hourly_rate_currency") @db.Char(3)
+  approvalStatus     TimeEntryApprovalStatus @default(pending) @map("approval_status")
+  approvedBy         String?                 @map("approved_by") @db.Uuid
+  approvedAt         DateTime?               @map("approved_at") @db.Timestamptz(6)
+  invoiceLineId      String?                 @map("invoice_line_id") @db.Uuid
+  metadata           Json                    @default("{}")
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy          String?                 @map("created_by") @db.Uuid
+  updatedBy          String?                 @map("updated_by") @db.Uuid
+  deletedAt          DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  version            Int                     @default(1)
+
+  project Project @relation(fields: [projectId], references: [id])
+  task    Task?   @relation(fields: [taskId], references: [id])
+
+  @@index([organizationId, projectId, startedAt(sort: Desc)], map: "idx_time_entries_project_id")
+  @@index([organizationId, userId, startedAt(sort: Desc)], map: "idx_time_entries_user_id")
+  @@index([taskId], map: "idx_time_entries_task_id")
+  @@map("time_entries")
+  @@schema("projects")
+}
+
+model ProjectTemplate {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  category       String   @default("general")
+  isPublic       Boolean  @default(false) @map("is_public")
+  isActive       Boolean  @default(true) @map("is_active")
+  structure      Json     @default("{}")
+  settings       Json     @default("{}")
+  usageCount     Int      @default(0) @map("usage_count")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedBy      String?  @map("updated_by") @db.Uuid
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version        Int      @default(1)
+
+  projects Project[]
+
+  @@unique([organizationId, name], map: "uq_project_templates_org_name_active")
+  @@index([category], map: "idx_project_templates_category")
+  @@map("project_templates")
+  @@schema("projects")
+}
