@@ -1,0 +1,684 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS Notifications API
+  version: 1.0.0
+  description: |
+    REST API for the Notifications bounded context (schema: `notifications`).
+    Resources: Notifications inbox, Preferences, Templates.
+servers:
+  - url: https://api.atlas.example.com
+security:
+  - bearerAuth: []
+tags:
+  - name: Inbox
+  - name: Preferences
+  - name: Templates
+paths:
+  /v1/organizations/{organizationId}/notifications:
+    get:
+      operationId: listNotifications
+      tags: [Inbox]
+      summary: List notifications for current user inbox
+      x-atlas-latency-tier: standard
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/NotificationCategory'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/NotificationStatus'
+        - name: unreadOnly
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: entityType
+          in: query
+          schema:
+            type: string
+        - name: entityId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated notification inbox
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+  /v1/organizations/{organizationId}/notifications/{notificationId}:
+    get:
+      operationId: getNotification
+      tags: [Inbox]
+      summary: Get notification by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/notificationId'
+      responses:
+        '200':
+          description: Notification details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/organizations/{organizationId}/notifications/{notificationId}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [Inbox]
+      summary: Mark notification as read
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/notificationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: Notification marked read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+  /v1/organizations/{organizationId}/notifications/{notificationId}/dismiss:
+    post:
+      operationId: dismissNotification
+      tags: [Inbox]
+      summary: Dismiss a notification
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/notificationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: Notification dismissed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+  /v1/organizations/{organizationId}/notifications/mark-all-read:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [Inbox]
+      summary: Mark all inbox notifications as read
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: Bulk read completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updatedCount:
+                    type: integer
+  /v1/organizations/{organizationId}/notification-preferences:
+    get:
+      operationId: listNotificationPreferences
+      tags: [Preferences]
+      summary: List notification preferences for current user
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: definitionId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated preference list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferenceListResponse'
+    put:
+      operationId: upsertNotificationPreferences
+      tags: [Preferences]
+      summary: Upsert notification preferences (batch)
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferenceUpsertRequest'
+      responses:
+        '200':
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NotificationPreference'
+  /v1/organizations/{organizationId}/notification-preferences/{preferenceId}:
+    get:
+      operationId: getNotificationPreference
+      tags: [Preferences]
+      summary: Get notification preference by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/preferenceId'
+      responses:
+        '200':
+          description: Preference details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreference'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateNotificationPreference
+      tags: [Preferences]
+      summary: Update a notification preference
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/preferenceId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferenceUpdate'
+      responses:
+        '200':
+          description: Preference updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreference'
+  /v1/organizations/{organizationId}/notification-templates:
+    get:
+      operationId: listNotificationTemplates
+      tags: [Templates]
+      summary: List notification templates
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: definitionId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/NotificationTemplateStatus'
+        - name: locale
+          in: query
+          schema:
+            type: string
+            default: en-US
+      responses:
+        '200':
+          description: Paginated template list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTemplateListResponse'
+    post:
+      operationId: createNotificationTemplate
+      tags: [Templates]
+      summary: Create a notification template
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationTemplateCreate'
+      responses:
+        '201':
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTemplate'
+  /v1/organizations/{organizationId}/notification-templates/{templateId}:
+    get:
+      operationId: getNotificationTemplate
+      tags: [Templates]
+      summary: Get notification template by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/templateId'
+      responses:
+        '200':
+          description: Template details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTemplate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateNotificationTemplate
+      tags: [Templates]
+      summary: Update a notification template
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/templateId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationTemplateUpdate'
+      responses:
+        '200':
+          description: Template updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTemplate'
+  /v1/organizations/{organizationId}/notification-templates/{templateId}/activate:
+    post:
+      operationId: activateNotificationTemplate
+      tags: [Templates]
+      summary: Activate a notification template version
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/templateId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: Template activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTemplate'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    organizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    notificationId:
+      name: notificationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    preferenceId:
+      name: preferenceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    templateId:
+      name: templateId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ifMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+    Pagination:
+      type: object
+      required: [has_more, limit]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+    NotificationCategory:
+      type: string
+      enum: [transactional, operational, digest, alert, marketing]
+    NotificationStatus:
+      type: string
+      enum: [pending, processing, delivered, partial, failed, suppressed, expired]
+    NotificationActorType:
+      type: string
+      enum: [user, system, api_key, agent, workflow]
+    NotificationChannelType:
+      type: string
+      enum: [email, push, sms, in_app, slack, teams, webhook]
+    DigestMode:
+      type: string
+      enum: [instant, hourly, daily, weekly]
+    NotificationTemplateStatus:
+      type: string
+      enum: [draft, active, deprecated]
+    Notification:
+      type: object
+      required: [id, organizationId, definitionId, category, title, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        definitionId:
+          type: string
+        category:
+          $ref: '#/components/schemas/NotificationCategory'
+        priority:
+          type: integer
+        recipientUserId:
+          type: string
+          format: uuid
+        actorUserId:
+          type: string
+          format: uuid
+          nullable: true
+        actorType:
+          $ref: '#/components/schemas/NotificationActorType'
+        title:
+          type: string
+        body:
+          type: string
+          nullable: true
+        actionUrl:
+          type: string
+          format: uri
+          nullable: true
+        entityType:
+          type: string
+          nullable: true
+        entityId:
+          type: string
+          format: uuid
+          nullable: true
+        payload:
+          type: object
+          additionalProperties: true
+        locale:
+          type: string
+        status:
+          $ref: '#/components/schemas/NotificationStatus'
+        scheduledFor:
+          type: string
+          format: date-time
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+        dismissedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    NotificationListResponse:
+      type: object
+      required: [data, pagination, unreadCount]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        unreadCount:
+          type: integer
+    NotificationPreference:
+      type: object
+      required: [id, organizationId, userId, definitionId, notificationChannelId, enabled]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        definitionId:
+          type: string
+        notificationChannelId:
+          type: string
+          format: uuid
+        channelType:
+          $ref: '#/components/schemas/NotificationChannelType'
+        enabled:
+          type: boolean
+        digestMode:
+          $ref: '#/components/schemas/DigestMode'
+          nullable: true
+        quietHoursOverride:
+          type: object
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    NotificationPreferenceUpdate:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        digestMode:
+          $ref: '#/components/schemas/DigestMode'
+        quietHoursOverride:
+          type: object
+        metadata:
+          type: object
+          additionalProperties: true
+    NotificationPreferenceUpsertRequest:
+      type: object
+      required: [preferences]
+      properties:
+        preferences:
+          type: array
+          items:
+            type: object
+            required: [definitionId, notificationChannelId]
+            properties:
+              definitionId:
+                type: string
+              notificationChannelId:
+                type: string
+                format: uuid
+              enabled:
+                type: boolean
+              digestMode:
+                $ref: '#/components/schemas/DigestMode'
+              quietHoursOverride:
+                type: object
+    NotificationPreferenceListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationPreference'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    NotificationTemplate:
+      type: object
+      required: [id, definitionId, notificationChannelId, version, bodyTemplate, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        definitionId:
+          type: string
+        notificationChannelId:
+          type: string
+          format: uuid
+        channelType:
+          $ref: '#/components/schemas/NotificationChannelType'
+        locale:
+          type: string
+        version:
+          type: integer
+        subjectTemplate:
+          type: string
+          nullable: true
+        bodyTemplate:
+          type: string
+        mjmlSource:
+          type: string
+          nullable: true
+        plainTextTemplate:
+          type: string
+          nullable: true
+        variablesSchema:
+          type: object
+          additionalProperties: true
+        status:
+          $ref: '#/components/schemas/NotificationTemplateStatus'
+        activatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deprecatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    NotificationTemplateCreate:
+      type: object
+      required: [definitionId, notificationChannelId, bodyTemplate]
+      properties:
+        definitionId:
+          type: string
+        notificationChannelId:
+          type: string
+          format: uuid
+        locale:
+          type: string
+          default: en-US
+        subjectTemplate:
+          type: string
+        bodyTemplate:
+          type: string
+        mjmlSource:
+          type: string
+        plainTextTemplate:
+          type: string
+        variablesSchema:
+          type: object
+          additionalProperties: true
+    NotificationTemplateUpdate:
+      type: object
+      properties:
+        subjectTemplate:
+          type: string
+        bodyTemplate:
+          type: string
+        mjmlSource:
+          type: string
+        plainTextTemplate:
+          type: string
+        variablesSchema:
+          type: object
+          additionalProperties: true
+        status:
+          $ref: '#/components/schemas/NotificationTemplateStatus'
+    NotificationTemplateListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationTemplate'
+        pagination:
+          $ref: '#/components/schemas/Pagination'

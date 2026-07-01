@@ -1,0 +1,1391 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS Projects API
+  version: 1.0.0
+  description: |
+    Project Management API for Atlas BOS.
+    Manages projects, tasks, milestones, sprints, and time entries.
+    Aligned with `projects` schema (ATLAS-DB-09).
+  contact:
+    name: Atlas Platform API Team
+    url: https://docs.atlas.example.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.atlas.example.com
+    description: Production
+  - url: https://api.staging.atlas.example.com
+    description: Staging
+  - url: http://localhost:3000
+    description: Local development
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+tags:
+  - name: Projects
+    description: Project portfolio management
+  - name: Tasks
+    description: Task and work item management
+  - name: Milestones
+    description: Project milestone tracking
+  - name: Sprints
+    description: Agile sprint management
+  - name: TimeEntries
+    description: Time tracking entries
+
+paths:
+  /v1/organizations/{organizationId}/projects:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Projects]
+      operationId: listProjects
+      summary: List projects
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ProjectStatus'
+        - name: priority
+          in: query
+          schema:
+            $ref: '#/components/schemas/Priority'
+        - name: workspaceId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of projects
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Projects]
+      operationId: createProject
+      summary: Create project
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreate'
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/projects/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Projects]
+      operationId: getProject
+      summary: Get project by ID
+      responses:
+        '200':
+          description: Project details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Projects]
+      operationId: updateProject
+      summary: Update project
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectUpdate'
+      responses:
+        '200':
+          description: Project updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Projects]
+      operationId: deleteProject
+      summary: Soft-delete project
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Project deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/projects/{projectId}/tasks:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Tasks]
+      operationId: listProjectTasks
+      summary: List tasks for a project
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/TaskStatus'
+        - name: assigneeId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: sprintId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: milestoneId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of tasks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Tasks]
+      operationId: createTask
+      summary: Create task
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/tasks/{taskId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      tags: [Tasks]
+      operationId: getTask
+      summary: Get task by ID
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Tasks]
+      operationId: updateTask
+      summary: Update task
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Tasks]
+      operationId: deleteTask
+      summary: Soft-delete task
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Task deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/tasks/{taskId}/move:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/TaskId'
+    post:
+      tags: [Tasks]
+      operationId: moveTask
+      summary: Move task to different status, sprint, or milestone
+      description: |
+        Updates task position in workflow. Emits `task.status_changed` domain event
+        when status changes.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveTaskRequest'
+      responses:
+        '200':
+          description: Task moved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/projects/{projectId}/milestones:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Milestones]
+      operationId: listMilestones
+      summary: List milestones for a project
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/MilestoneStatus'
+      responses:
+        '200':
+          description: Paginated list of milestones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MilestoneCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Milestones]
+      operationId: createMilestone
+      summary: Create milestone
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MilestoneCreate'
+      responses:
+        '201':
+          description: Milestone created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Milestone'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/milestones/{milestoneId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/MilestoneId'
+    get:
+      tags: [Milestones]
+      operationId: getMilestone
+      summary: Get milestone by ID
+      responses:
+        '200':
+          description: Milestone details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Milestone'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Milestones]
+      operationId: updateMilestone
+      summary: Update milestone
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MilestoneUpdate'
+      responses:
+        '200':
+          description: Milestone updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Milestone'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Milestones]
+      operationId: deleteMilestone
+      summary: Soft-delete milestone
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Milestone deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/projects/{projectId}/sprints:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Sprints]
+      operationId: listSprints
+      summary: List sprints for a project
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/SprintStatus'
+      responses:
+        '200':
+          description: Paginated list of sprints
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SprintCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Sprints]
+      operationId: createSprint
+      summary: Create sprint
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SprintCreate'
+      responses:
+        '201':
+          description: Sprint created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sprint'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/sprints/{sprintId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/SprintId'
+    get:
+      tags: [Sprints]
+      operationId: getSprint
+      summary: Get sprint by ID
+      responses:
+        '200':
+          description: Sprint details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sprint'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Sprints]
+      operationId: updateSprint
+      summary: Update sprint
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SprintUpdate'
+      responses:
+        '200':
+          description: Sprint updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sprint'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Sprints]
+      operationId: deleteSprint
+      summary: Soft-delete sprint
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Sprint deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/time-entries:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [TimeEntries]
+      operationId: listTimeEntries
+      summary: List time entries
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: taskId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: userId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: approvalStatus
+          in: query
+          schema:
+            $ref: '#/components/schemas/TimeEntryApprovalStatus'
+      responses:
+        '200':
+          description: Paginated list of time entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeEntryCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/time-entries/log:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    post:
+      tags: [TimeEntries]
+      operationId: logTime
+      summary: Log time against a project and optional task
+      description: |
+        Creates a time entry with calculated or explicit duration.
+        Requires valid project and assignee user per BR-PM-05.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogTimeRequest'
+      responses:
+        '201':
+          description: Time logged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeEntry'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/time-entries/{timeEntryId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/TimeEntryId'
+    get:
+      tags: [TimeEntries]
+      operationId: getTimeEntry
+      summary: Get time entry by ID
+      responses:
+        '200':
+          description: Time entry details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeEntry'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [TimeEntries]
+      operationId: updateTimeEntry
+      summary: Update time entry
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimeEntryUpdate'
+      responses:
+        '200':
+          description: Time entry updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeEntry'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [TimeEntries]
+      operationId: deleteTimeEntry
+      summary: Soft-delete time entry
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Time entry deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+
+  parameters:
+    OrganizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    MilestoneId:
+      name: milestoneId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SprintId:
+      name: sprintId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TimeEntryId:
+      name: timeEntryId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Sort:
+      name: sort
+      in: query
+      schema:
+        type: string
+        default: -createdAt
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IfMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+
+  responses:
+    Problem:
+      description: RFC 7807 Problem Details
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        requestId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+    FieldError:
+      type: object
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+
+    Pagination:
+      type: object
+      required: [hasMore, limit]
+      properties:
+        hasMore:
+          type: boolean
+        nextCursor:
+          type: [string, 'null']
+        prevCursor:
+          type: [string, 'null']
+        limit:
+          type: integer
+
+    CursorPage:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items: {}
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    AuditFields:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: [string, 'null']
+          format: date-time
+        createdBy:
+          type: [string, 'null']
+          format: uuid
+        updatedBy:
+          type: [string, 'null']
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+
+    ProjectStatus:
+      type: string
+      enum: [planning, active, on_hold, completed, cancelled, archived]
+
+    Priority:
+      type: string
+      enum: [low, medium, high, critical]
+
+    ProjectVisibility:
+      type: string
+      enum: [private, team, organization]
+
+    Project:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, code, name, status, priority, visibility, progressPercent]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            workspaceId:
+              type: [string, 'null']
+              format: uuid
+            templateId:
+              type: [string, 'null']
+              format: uuid
+            opportunityId:
+              type: [string, 'null']
+              format: uuid
+            orderId:
+              type: [string, 'null']
+              format: uuid
+            code:
+              type: string
+            name:
+              type: string
+            description:
+              type: [string, 'null']
+            status:
+              $ref: '#/components/schemas/ProjectStatus'
+            priority:
+              $ref: '#/components/schemas/Priority'
+            visibility:
+              $ref: '#/components/schemas/ProjectVisibility'
+            startDate:
+              type: [string, 'null']
+              format: date
+            targetEndDate:
+              type: [string, 'null']
+              format: date
+            actualEndDate:
+              type: [string, 'null']
+              format: date
+            budgetHours:
+              type: [string, 'null']
+            budgetAmount:
+              type: [string, 'null']
+            budgetCurrency:
+              type: [string, 'null']
+              minLength: 3
+              maxLength: 3
+            progressPercent:
+              type: string
+            settings:
+              type: object
+              additionalProperties: true
+            metadata:
+              type: object
+              additionalProperties: true
+            externalId:
+              type: [string, 'null']
+
+    ProjectCreate:
+      type: object
+      required: [code, name]
+      properties:
+        workspaceId:
+          type: string
+          format: uuid
+        templateId:
+          type: string
+          format: uuid
+        opportunityId:
+          type: string
+          format: uuid
+        orderId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/ProjectStatus'
+        priority:
+          $ref: '#/components/schemas/Priority'
+        visibility:
+          $ref: '#/components/schemas/ProjectVisibility'
+        startDate:
+          type: string
+          format: date
+        targetEndDate:
+          type: string
+          format: date
+        budgetHours:
+          type: string
+        budgetAmount:
+          type: string
+        budgetCurrency:
+          type: string
+          default: USD
+        settings:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+        externalId:
+          type: string
+
+    ProjectUpdate:
+      allOf:
+        - $ref: '#/components/schemas/ProjectCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+            progressPercent:
+              type: string
+            actualEndDate:
+              type: string
+              format: date
+
+    ProjectCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Project'
+
+    TaskStatus:
+      type: string
+      enum: [backlog, todo, in_progress, in_review, blocked, done, cancelled]
+
+    TaskType:
+      type: string
+      enum: [task, bug, story, epic, subtask]
+
+    Task:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, projectId, title, status, priority, taskType, sortOrder, actualHours, labels]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            projectId:
+              type: string
+              format: uuid
+            parentTaskId:
+              type: [string, 'null']
+              format: uuid
+            sprintId:
+              type: [string, 'null']
+              format: uuid
+            milestoneId:
+              type: [string, 'null']
+              format: uuid
+            assigneeId:
+              type: [string, 'null']
+              format: uuid
+            reporterId:
+              type: [string, 'null']
+              format: uuid
+            title:
+              type: string
+            description:
+              type: [string, 'null']
+            status:
+              $ref: '#/components/schemas/TaskStatus'
+            priority:
+              $ref: '#/components/schemas/Priority'
+            taskType:
+              $ref: '#/components/schemas/TaskType'
+            sortOrder:
+              type: integer
+            estimateHours:
+              type: [string, 'null']
+            actualHours:
+              type: string
+            storyPoints:
+              type: [string, 'null']
+            dueDate:
+              type: [string, 'null']
+              format: date-time
+            startedAt:
+              type: [string, 'null']
+              format: date-time
+            completedAt:
+              type: [string, 'null']
+              format: date-time
+            labels:
+              type: array
+              items:
+                type: string
+            customFields:
+              type: object
+              additionalProperties: true
+            metadata:
+              type: object
+              additionalProperties: true
+            externalId:
+              type: [string, 'null']
+
+    TaskCreate:
+      type: object
+      required: [title]
+      properties:
+        parentTaskId:
+          type: string
+          format: uuid
+        sprintId:
+          type: string
+          format: uuid
+        milestoneId:
+          type: string
+          format: uuid
+        assigneeId:
+          type: string
+          format: uuid
+        reporterId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        priority:
+          $ref: '#/components/schemas/Priority'
+        taskType:
+          $ref: '#/components/schemas/TaskType'
+        sortOrder:
+          type: integer
+          default: 0
+        estimateHours:
+          type: string
+        storyPoints:
+          type: string
+        dueDate:
+          type: string
+          format: date-time
+        labels:
+          type: array
+          items:
+            type: string
+        customFields:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+        externalId:
+          type: string
+
+    TaskUpdate:
+      allOf:
+        - $ref: '#/components/schemas/TaskCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+            startedAt:
+              type: string
+              format: date-time
+            completedAt:
+              type: string
+              format: date-time
+
+    TaskCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Task'
+
+    MoveTaskRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        sprintId:
+          type: [string, 'null']
+          format: uuid
+        milestoneId:
+          type: [string, 'null']
+          format: uuid
+        sortOrder:
+          type: integer
+        assigneeId:
+          type: [string, 'null']
+          format: uuid
+
+    MilestoneStatus:
+      type: string
+      enum: [pending, in_progress, completed, missed, cancelled]
+
+    Milestone:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, projectId, name, status, targetDate, sortOrder]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            projectId:
+              type: string
+              format: uuid
+            name:
+              type: string
+            description:
+              type: [string, 'null']
+            status:
+              $ref: '#/components/schemas/MilestoneStatus'
+            targetDate:
+              type: string
+              format: date
+            completedAt:
+              type: [string, 'null']
+              format: date-time
+            sortOrder:
+              type: integer
+            metadata:
+              type: object
+              additionalProperties: true
+
+    MilestoneCreate:
+      type: object
+      required: [name, targetDate]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/MilestoneStatus'
+        targetDate:
+          type: string
+          format: date
+        sortOrder:
+          type: integer
+          default: 0
+        metadata:
+          type: object
+          additionalProperties: true
+
+    MilestoneUpdate:
+      allOf:
+        - $ref: '#/components/schemas/MilestoneCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+            completedAt:
+              type: string
+              format: date-time
+
+    MilestoneCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Milestone'
+
+    SprintStatus:
+      type: string
+      enum: [planned, active, completed, cancelled]
+
+    Sprint:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, projectId, name, status, startDate, endDate]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            projectId:
+              type: string
+              format: uuid
+            name:
+              type: string
+            goal:
+              type: [string, 'null']
+            status:
+              $ref: '#/components/schemas/SprintStatus'
+            startDate:
+              type: string
+              format: date
+            endDate:
+              type: string
+              format: date
+            completedAt:
+              type: [string, 'null']
+              format: date-time
+            velocityPoints:
+              type: [string, 'null']
+            metadata:
+              type: object
+              additionalProperties: true
+
+    SprintCreate:
+      type: object
+      required: [name, startDate, endDate]
+      properties:
+        name:
+          type: string
+        goal:
+          type: string
+        status:
+          $ref: '#/components/schemas/SprintStatus'
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        metadata:
+          type: object
+          additionalProperties: true
+
+    SprintUpdate:
+      allOf:
+        - $ref: '#/components/schemas/SprintCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+            completedAt:
+              type: string
+              format: date-time
+            velocityPoints:
+              type: string
+
+    SprintCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Sprint'
+
+    TimeEntryApprovalStatus:
+      type: string
+      enum: [pending, approved, rejected]
+
+    TimeEntry:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, projectId, userId, startedAt, durationMinutes, isBillable, approvalStatus]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            projectId:
+              type: string
+              format: uuid
+            taskId:
+              type: [string, 'null']
+              format: uuid
+            userId:
+              type: string
+              format: uuid
+            description:
+              type: [string, 'null']
+            startedAt:
+              type: string
+              format: date-time
+            endedAt:
+              type: [string, 'null']
+              format: date-time
+            durationMinutes:
+              type: integer
+              minimum: 1
+            isBillable:
+              type: boolean
+            hourlyRate:
+              type: [string, 'null']
+            hourlyRateCurrency:
+              type: [string, 'null']
+              minLength: 3
+              maxLength: 3
+            approvalStatus:
+              $ref: '#/components/schemas/TimeEntryApprovalStatus'
+            approvedBy:
+              type: [string, 'null']
+              format: uuid
+            approvedAt:
+              type: [string, 'null']
+              format: date-time
+            invoiceLineId:
+              type: [string, 'null']
+              format: uuid
+            metadata:
+              type: object
+              additionalProperties: true
+
+    LogTimeRequest:
+      type: object
+      required: [projectId, userId, startedAt]
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        taskId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        description:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+          minimum: 1
+          description: Required if endedAt not provided
+        isBillable:
+          type: boolean
+          default: true
+        hourlyRate:
+          type: string
+        hourlyRateCurrency:
+          type: string
+          default: USD
+        metadata:
+          type: object
+          additionalProperties: true
+
+    TimeEntryUpdate:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+        description:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+          minimum: 1
+        isBillable:
+          type: boolean
+        hourlyRate:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    TimeEntryCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/TimeEntry'

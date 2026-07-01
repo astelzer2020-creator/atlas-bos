@@ -1,0 +1,2008 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS ERP API
+  version: 1.0.0
+  description: |
+    Enterprise Resource Planning API for Atlas BOS.
+    Manages products, inventory, warehouses, purchase/sales orders, and suppliers.
+    Aligned with `stock` and `commercial` schemas (ATLAS-DB-06).
+  contact:
+    name: Atlas Platform API Team
+    url: https://docs.atlas.example.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.atlas.example.com
+    description: Production
+  - url: https://api.staging.atlas.example.com
+    description: Staging
+  - url: http://localhost:3000
+    description: Local development
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+tags:
+  - name: Products
+    description: Product catalog management
+  - name: ProductVariants
+    description: Product variant (SKU) management
+  - name: Warehouses
+    description: Warehouse and location management
+  - name: Inventory
+    description: Inventory quantity snapshots
+  - name: StockMovements
+    description: Immutable inventory movement ledger
+  - name: Suppliers
+    description: Supplier master data
+  - name: PurchaseOrders
+    description: Purchase order management
+  - name: SalesOrders
+    description: Sales order management
+
+paths:
+  /v1/organizations/{organizationId}/products:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Products]
+      operationId: listProducts
+      summary: List products
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: productType
+          in: query
+          schema:
+            $ref: '#/components/schemas/ProductType'
+      responses:
+        '200':
+          description: Paginated list of products
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Products]
+      operationId: createProduct
+      summary: Create product
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCreate'
+      responses:
+        '201':
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/products/{productId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/ProductId'
+    get:
+      tags: [Products]
+      operationId: getProduct
+      summary: Get product by ID
+      responses:
+        '200':
+          description: Product details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Products]
+      operationId: updateProduct
+      summary: Update product
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductUpdate'
+      responses:
+        '200':
+          description: Product updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Products]
+      operationId: deleteProduct
+      summary: Soft-delete product
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Product deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/products/{productId}/variants:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/ProductId'
+    get:
+      tags: [ProductVariants]
+      operationId: listProductVariants
+      summary: List variants for a product
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated list of product variants
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductVariantCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [ProductVariants]
+      operationId: createProductVariant
+      summary: Create product variant
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductVariantCreate'
+      responses:
+        '201':
+          description: Product variant created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductVariant'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/product-variants/{variantId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/VariantId'
+    get:
+      tags: [ProductVariants]
+      operationId: getProductVariant
+      summary: Get product variant by ID
+      responses:
+        '200':
+          description: Product variant details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductVariant'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [ProductVariants]
+      operationId: updateProductVariant
+      summary: Update product variant
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductVariantUpdate'
+      responses:
+        '200':
+          description: Product variant updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductVariant'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [ProductVariants]
+      operationId: deleteProductVariant
+      summary: Soft-delete product variant
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Product variant deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/warehouses:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Warehouses]
+      operationId: listWarehouses
+      summary: List warehouses
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated list of warehouses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WarehouseCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Warehouses]
+      operationId: createWarehouse
+      summary: Create warehouse
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WarehouseCreate'
+      responses:
+        '201':
+          description: Warehouse created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Warehouse'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/warehouses/{warehouseId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/WarehouseId'
+    get:
+      tags: [Warehouses]
+      operationId: getWarehouse
+      summary: Get warehouse by ID
+      responses:
+        '200':
+          description: Warehouse details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Warehouse'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Warehouses]
+      operationId: updateWarehouse
+      summary: Update warehouse
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WarehouseUpdate'
+      responses:
+        '200':
+          description: Warehouse updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Warehouse'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Warehouses]
+      operationId: deleteWarehouse
+      summary: Soft-delete warehouse
+      description: Blocked if warehouse has positive inventory on hand.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Warehouse deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/inventory:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Inventory]
+      operationId: listInventory
+      summary: List inventory items
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: warehouseId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: productVariantId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: lowStock
+          in: query
+          schema:
+            type: boolean
+          description: Filter items at or below reorder point
+      responses:
+        '200':
+          description: Paginated list of inventory items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/inventory/{inventoryItemId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/InventoryItemId'
+    get:
+      tags: [Inventory]
+      operationId: getInventoryItem
+      summary: Get inventory item by ID
+      responses:
+        '200':
+          description: Inventory item details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItem'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Inventory]
+      operationId: updateInventoryItem
+      summary: Update inventory item settings
+      description: Quantity changes must use stock movements or adjust-stock operation.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryItemUpdate'
+      responses:
+        '200':
+          description: Inventory item updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/inventory/adjust:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    post:
+      tags: [Inventory]
+      operationId: adjustStock
+      summary: Adjust inventory quantity
+      description: |
+        Creates an immutable stock movement of type `adjustment` and updates
+        inventory quantity on hand. Emits `stock.inventory.adjusted.v1` event.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdjustStockRequest'
+      responses:
+        '200':
+          description: Stock adjusted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdjustStockResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/stock-movements:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [StockMovements]
+      operationId: listStockMovements
+      summary: List stock movements
+      description: Immutable ledger — read-only except creation via operations.
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: warehouseId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: productVariantId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: inventoryItemId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: movementType
+          in: query
+          schema:
+            $ref: '#/components/schemas/StockMovementType'
+      responses:
+        '200':
+          description: Paginated list of stock movements
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovementCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/stock-movements/{movementId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/MovementId'
+    get:
+      tags: [StockMovements]
+      operationId: getStockMovement
+      summary: Get stock movement by ID
+      responses:
+        '200':
+          description: Stock movement details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovement'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/suppliers:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Suppliers]
+      operationId: listSuppliers
+      summary: List suppliers
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated list of suppliers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Suppliers]
+      operationId: createSupplier
+      summary: Create supplier
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierCreate'
+      responses:
+        '201':
+          description: Supplier created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/suppliers/{supplierId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/SupplierId'
+    get:
+      tags: [Suppliers]
+      operationId: getSupplier
+      summary: Get supplier by ID
+      responses:
+        '200':
+          description: Supplier details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Suppliers]
+      operationId: updateSupplier
+      summary: Update supplier
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierUpdate'
+      responses:
+        '200':
+          description: Supplier updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Suppliers]
+      operationId: deleteSupplier
+      summary: Soft-delete supplier
+      description: Blocked if open purchase orders exist.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Supplier deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/purchase-orders:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [PurchaseOrders]
+      operationId: listPurchaseOrders
+      summary: List purchase orders
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/PurchaseOrderStatus'
+        - name: supplierId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of purchase orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [PurchaseOrders]
+      operationId: createPurchaseOrder
+      summary: Create purchase order
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderCreate'
+      responses:
+        '201':
+          description: Purchase order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/purchase-orders/{purchaseOrderId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/PurchaseOrderId'
+    get:
+      tags: [PurchaseOrders]
+      operationId: getPurchaseOrder
+      summary: Get purchase order by ID
+      responses:
+        '200':
+          description: Purchase order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [PurchaseOrders]
+      operationId: updatePurchaseOrder
+      summary: Update purchase order
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderUpdate'
+      responses:
+        '200':
+          description: Purchase order updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [PurchaseOrders]
+      operationId: deletePurchaseOrder
+      summary: Soft-delete purchase order
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Purchase order deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/purchase-orders/{purchaseOrderId}/receive:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/PurchaseOrderId'
+    post:
+      tags: [PurchaseOrders]
+      operationId: receivePurchaseOrder
+      summary: Receive purchase order goods
+      description: |
+        Records receipt of PO lines, creates stock movements, updates inventory.
+        Emits `commercial.purchase_order.received.v1` event.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceivePurchaseOrderRequest'
+      responses:
+        '200':
+          description: Purchase order received
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceivePurchaseOrderResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/sales-orders:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [SalesOrders]
+      operationId: listSalesOrders
+      summary: List sales orders
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/SalesOrderStatus'
+        - name: accountId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of sales orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesOrderCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [SalesOrders]
+      operationId: createSalesOrder
+      summary: Create sales order
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesOrderCreate'
+      responses:
+        '201':
+          description: Sales order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesOrder'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/sales-orders/{salesOrderId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/SalesOrderId'
+    get:
+      tags: [SalesOrders]
+      operationId: getSalesOrder
+      summary: Get sales order by ID
+      responses:
+        '200':
+          description: Sales order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesOrder'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [SalesOrders]
+      operationId: updateSalesOrder
+      summary: Update sales order
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesOrderUpdate'
+      responses:
+        '200':
+          description: Sales order updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesOrder'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [SalesOrders]
+      operationId: deleteSalesOrder
+      summary: Soft-delete sales order
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Sales order deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+
+  parameters:
+    OrganizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ProductId:
+      name: productId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    VariantId:
+      name: variantId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    WarehouseId:
+      name: warehouseId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    InventoryItemId:
+      name: inventoryItemId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    MovementId:
+      name: movementId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SupplierId:
+      name: supplierId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PurchaseOrderId:
+      name: purchaseOrderId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SalesOrderId:
+      name: salesOrderId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Sort:
+      name: sort
+      in: query
+      schema:
+        type: string
+        default: -createdAt
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IfMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+
+  responses:
+    Problem:
+      description: RFC 7807 Problem Details
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        requestId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+    FieldError:
+      type: object
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+
+    Pagination:
+      type: object
+      required: [hasMore, limit]
+      properties:
+        hasMore:
+          type: boolean
+        nextCursor:
+          type: [string, 'null']
+        prevCursor:
+          type: [string, 'null']
+        limit:
+          type: integer
+
+    CursorPage:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items: {}
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    AuditFields:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: [string, 'null']
+          format: date-time
+        createdBy:
+          type: [string, 'null']
+          format: uuid
+        updatedBy:
+          type: [string, 'null']
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+
+    Address:
+      type: object
+      additionalProperties: true
+
+    Dimensions:
+      type: object
+      additionalProperties: true
+      properties:
+        length:
+          type: string
+        width:
+          type: string
+        height:
+          type: string
+        unit:
+          type: string
+
+    ProductType:
+      type: string
+      enum: [goods, service, digital, bundle]
+
+    Product:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, sku, name, productType, unitOfMeasure, isActive, isSerialized, isBatchTracked, defaultCost, defaultPrice, currencyCode]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            externalId:
+              type: [string, 'null']
+            sku:
+              type: string
+            name:
+              type: string
+            description:
+              type: [string, 'null']
+            productType:
+              $ref: '#/components/schemas/ProductType'
+            category:
+              type: [string, 'null']
+            unitOfMeasure:
+              type: string
+            isActive:
+              type: boolean
+            isSerialized:
+              type: boolean
+            isBatchTracked:
+              type: boolean
+            weightKg:
+              type: [string, 'null']
+            dimensions:
+              $ref: '#/components/schemas/Dimensions'
+            taxCategory:
+              type: [string, 'null']
+            defaultCost:
+              type: string
+            defaultPrice:
+              type: string
+            currencyCode:
+              type: string
+              minLength: 3
+              maxLength: 3
+            metadata:
+              type: object
+              additionalProperties: true
+
+    ProductCreate:
+      type: object
+      required: [sku, name]
+      properties:
+        externalId:
+          type: string
+        sku:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        productType:
+          $ref: '#/components/schemas/ProductType'
+        category:
+          type: string
+        unitOfMeasure:
+          type: string
+          default: each
+        isActive:
+          type: boolean
+          default: true
+        isSerialized:
+          type: boolean
+          default: false
+        isBatchTracked:
+          type: boolean
+          default: false
+        weightKg:
+          type: string
+        dimensions:
+          $ref: '#/components/schemas/Dimensions'
+        taxCategory:
+          type: string
+        defaultCost:
+          type: string
+          default: '0'
+        defaultPrice:
+          type: string
+          default: '0'
+        currencyCode:
+          type: string
+          default: USD
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ProductUpdate:
+      allOf:
+        - $ref: '#/components/schemas/ProductCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+
+    ProductCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Product'
+
+    ProductVariant:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, productId, sku, name, cost, price, isActive]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            productId:
+              type: string
+              format: uuid
+            externalId:
+              type: [string, 'null']
+            sku:
+              type: string
+            name:
+              type: string
+            barcode:
+              type: [string, 'null']
+            attributes:
+              type: object
+              additionalProperties: true
+            cost:
+              type: string
+            price:
+              type: string
+            weightKg:
+              type: [string, 'null']
+            isActive:
+              type: boolean
+            metadata:
+              type: object
+              additionalProperties: true
+
+    ProductVariantCreate:
+      type: object
+      required: [sku, name]
+      properties:
+        externalId:
+          type: string
+        sku:
+          type: string
+        name:
+          type: string
+        barcode:
+          type: string
+        attributes:
+          type: object
+          additionalProperties: true
+        cost:
+          type: string
+          default: '0'
+        price:
+          type: string
+          default: '0'
+        weightKg:
+          type: string
+        isActive:
+          type: boolean
+          default: true
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ProductVariantUpdate:
+      allOf:
+        - $ref: '#/components/schemas/ProductVariantCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+
+    ProductVariantCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProductVariant'
+
+    WarehouseType:
+      type: string
+      enum: [standard, transit, quarantine, returns, virtual]
+
+    Warehouse:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, code, name, warehouseType, isActive, isDefault]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            code:
+              type: string
+            name:
+              type: string
+            warehouseType:
+              $ref: '#/components/schemas/WarehouseType'
+            address:
+              $ref: '#/components/schemas/Address'
+            isActive:
+              type: boolean
+            isDefault:
+              type: boolean
+            managerId:
+              type: [string, 'null']
+              format: uuid
+            metadata:
+              type: object
+              additionalProperties: true
+
+    WarehouseCreate:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        warehouseType:
+          $ref: '#/components/schemas/WarehouseType'
+        address:
+          $ref: '#/components/schemas/Address'
+        isActive:
+          type: boolean
+          default: true
+        isDefault:
+          type: boolean
+          default: false
+        managerId:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+
+    WarehouseUpdate:
+      allOf:
+        - $ref: '#/components/schemas/WarehouseCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+
+    WarehouseCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Warehouse'
+
+    InventoryItem:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, warehouseId, productVariantId, quantityOnHand, quantityReserved, quantityAvailable]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            warehouseId:
+              type: string
+              format: uuid
+            productVariantId:
+              type: string
+              format: uuid
+            quantityOnHand:
+              type: string
+            quantityReserved:
+              type: string
+            quantityAvailable:
+              type: string
+              description: Computed as quantityOnHand - quantityReserved
+            reorderPoint:
+              type: [string, 'null']
+            reorderQuantity:
+              type: [string, 'null']
+            lastCountedAt:
+              type: [string, 'null']
+              format: date-time
+            binLocation:
+              type: [string, 'null']
+            metadata:
+              type: object
+              additionalProperties: true
+
+    InventoryItemUpdate:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+        reorderPoint:
+          type: string
+        reorderQuantity:
+          type: string
+        binLocation:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    InventoryItemCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/InventoryItem'
+
+    AdjustStockRequest:
+      type: object
+      required: [warehouseId, productVariantId, quantity, reason]
+      properties:
+        warehouseId:
+          type: string
+          format: uuid
+        productVariantId:
+          type: string
+          format: uuid
+        quantity:
+          type: string
+          description: Positive or negative adjustment quantity
+        unitCost:
+          type: string
+        reason:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+
+    AdjustStockResponse:
+      type: object
+      required: [inventoryItem, stockMovement]
+      properties:
+        inventoryItem:
+          $ref: '#/components/schemas/InventoryItem'
+        stockMovement:
+          $ref: '#/components/schemas/StockMovement'
+
+    StockMovementType:
+      type: string
+      enum: [receipt, shipment, adjustment, transfer_in, transfer_out, reservation, release, production_consume, production_output, return]
+
+    StockMovement:
+      type: object
+      required: [id, organizationId, inventoryItemId, warehouseId, productVariantId, movementType, quantity, occurredAt, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        inventoryItemId:
+          type: string
+          format: uuid
+        warehouseId:
+          type: string
+          format: uuid
+        productVariantId:
+          type: string
+          format: uuid
+        movementType:
+          $ref: '#/components/schemas/StockMovementType'
+        quantity:
+          type: string
+        unitCost:
+          type: [string, 'null']
+        referenceType:
+          type: [string, 'null']
+        referenceId:
+          type: [string, 'null']
+          format: uuid
+        reason:
+          type: [string, 'null']
+        occurredAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: [string, 'null']
+          format: uuid
+
+    StockMovementCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/StockMovement'
+
+    Supplier:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, code, name, paymentTermsDays, currencyCode, isActive]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            externalId:
+              type: [string, 'null']
+            code:
+              type: string
+            name:
+              type: string
+            contactName:
+              type: [string, 'null']
+            email:
+              type: [string, 'null']
+              format: email
+            phone:
+              type: [string, 'null']
+            address:
+              $ref: '#/components/schemas/Address'
+            paymentTermsDays:
+              type: integer
+            currencyCode:
+              type: string
+              minLength: 3
+              maxLength: 3
+            taxId:
+              type: [string, 'null']
+            isActive:
+              type: boolean
+            rating:
+              type: [integer, 'null']
+              minimum: 1
+              maximum: 5
+            metadata:
+              type: object
+              additionalProperties: true
+
+    SupplierCreate:
+      type: object
+      required: [code, name]
+      properties:
+        externalId:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        contactName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        address:
+          $ref: '#/components/schemas/Address'
+        paymentTermsDays:
+          type: integer
+          default: 30
+        currencyCode:
+          type: string
+          default: USD
+        taxId:
+          type: string
+        isActive:
+          type: boolean
+          default: true
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        metadata:
+          type: object
+          additionalProperties: true
+
+    SupplierUpdate:
+      allOf:
+        - $ref: '#/components/schemas/SupplierCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+
+    SupplierCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Supplier'
+
+    PurchaseOrderStatus:
+      type: string
+      enum: [draft, submitted, approved, partially_received, received, cancelled]
+
+    PurchaseOrderLine:
+      type: object
+      required: [id, lineNumber, productVariantId, quantityOrdered, quantityReceived, unitPrice, taxRate, lineTotal]
+      properties:
+        id:
+          type: string
+          format: uuid
+        lineNumber:
+          type: integer
+        productVariantId:
+          type: string
+          format: uuid
+        description:
+          type: [string, 'null']
+        quantityOrdered:
+          type: string
+        quantityReceived:
+          type: string
+        unitPrice:
+          type: string
+        taxRate:
+          type: string
+        lineTotal:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    PurchaseOrder:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, poNumber, supplierId, warehouseId, status, orderDate, currencyCode, subtotal, taxAmount, totalAmount, lines]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            poNumber:
+              type: string
+            supplierId:
+              type: string
+              format: uuid
+            warehouseId:
+              type: string
+              format: uuid
+            status:
+              $ref: '#/components/schemas/PurchaseOrderStatus'
+            orderDate:
+              type: string
+              format: date
+            expectedDate:
+              type: [string, 'null']
+              format: date
+            receivedDate:
+              type: [string, 'null']
+              format: date
+            currencyCode:
+              type: string
+              minLength: 3
+              maxLength: 3
+            subtotal:
+              type: string
+            taxAmount:
+              type: string
+            totalAmount:
+              type: string
+            notes:
+              type: [string, 'null']
+            approvedBy:
+              type: [string, 'null']
+              format: uuid
+            approvedAt:
+              type: [string, 'null']
+              format: date-time
+            lines:
+              type: array
+              items:
+                $ref: '#/components/schemas/PurchaseOrderLine'
+            metadata:
+              type: object
+              additionalProperties: true
+
+    PurchaseOrderLineCreate:
+      type: object
+      required: [productVariantId, quantityOrdered, unitPrice]
+      properties:
+        lineNumber:
+          type: integer
+        productVariantId:
+          type: string
+          format: uuid
+        description:
+          type: string
+        quantityOrdered:
+          type: string
+        unitPrice:
+          type: string
+        taxRate:
+          type: string
+          default: '0'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    PurchaseOrderCreate:
+      type: object
+      required: [supplierId, warehouseId, lines]
+      properties:
+        poNumber:
+          type: string
+        supplierId:
+          type: string
+          format: uuid
+        warehouseId:
+          type: string
+          format: uuid
+        orderDate:
+          type: string
+          format: date
+        expectedDate:
+          type: string
+          format: date
+        currencyCode:
+          type: string
+          default: USD
+        notes:
+          type: string
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/PurchaseOrderLineCreate'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    PurchaseOrderUpdate:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+        expectedDate:
+          type: string
+          format: date
+        notes:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseOrderLineCreate'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    PurchaseOrderCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/PurchaseOrder'
+
+    ReceivePurchaseOrderLine:
+      type: object
+      required: [lineId, quantityReceived]
+      properties:
+        lineId:
+          type: string
+          format: uuid
+        quantityReceived:
+          type: string
+        unitCost:
+          type: string
+
+    ReceivePurchaseOrderRequest:
+      type: object
+      required: [lines, version]
+      properties:
+        version:
+          type: integer
+        receivedDate:
+          type: string
+          format: date
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ReceivePurchaseOrderLine'
+        notes:
+          type: string
+
+    ReceivePurchaseOrderResponse:
+      type: object
+      required: [purchaseOrder, stockMovements]
+      properties:
+        purchaseOrder:
+          $ref: '#/components/schemas/PurchaseOrder'
+        stockMovements:
+          type: array
+          items:
+            $ref: '#/components/schemas/StockMovement'
+
+    SalesOrderStatus:
+      type: string
+      enum: [draft, confirmed, processing, partially_fulfilled, fulfilled, invoiced, cancelled]
+
+    SalesOrderLine:
+      type: object
+      required: [id, lineNumber, productVariantId, quantityOrdered, quantityFulfilled, unitPrice, discountPercent, taxRate, lineTotal]
+      properties:
+        id:
+          type: string
+          format: uuid
+        lineNumber:
+          type: integer
+        productVariantId:
+          type: string
+          format: uuid
+        description:
+          type: [string, 'null']
+        quantityOrdered:
+          type: string
+        quantityFulfilled:
+          type: string
+        unitPrice:
+          type: string
+        discountPercent:
+          type: string
+        taxRate:
+          type: string
+        lineTotal:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    SalesOrder:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, orderNumber, warehouseId, status, orderDate, currencyCode, subtotal, discountAmount, taxAmount, shippingAmount, totalAmount, lines]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            orderNumber:
+              type: string
+            accountId:
+              type: [string, 'null']
+              format: uuid
+            contactId:
+              type: [string, 'null']
+              format: uuid
+            dealId:
+              type: [string, 'null']
+              format: uuid
+            warehouseId:
+              type: string
+              format: uuid
+            status:
+              $ref: '#/components/schemas/SalesOrderStatus'
+            orderDate:
+              type: string
+              format: date
+            requestedDate:
+              type: [string, 'null']
+              format: date
+            fulfilledDate:
+              type: [string, 'null']
+              format: date
+            currencyCode:
+              type: string
+              minLength: 3
+              maxLength: 3
+            subtotal:
+              type: string
+            discountAmount:
+              type: string
+            taxAmount:
+              type: string
+            shippingAmount:
+              type: string
+            totalAmount:
+              type: string
+            shippingAddress:
+              $ref: '#/components/schemas/Address'
+            billingAddress:
+              $ref: '#/components/schemas/Address'
+            notes:
+              type: [string, 'null']
+            lines:
+              type: array
+              items:
+                $ref: '#/components/schemas/SalesOrderLine'
+            metadata:
+              type: object
+              additionalProperties: true
+
+    SalesOrderLineCreate:
+      type: object
+      required: [productVariantId, quantityOrdered, unitPrice]
+      properties:
+        lineNumber:
+          type: integer
+        productVariantId:
+          type: string
+          format: uuid
+        description:
+          type: string
+        quantityOrdered:
+          type: string
+        unitPrice:
+          type: string
+        discountPercent:
+          type: string
+          default: '0'
+        taxRate:
+          type: string
+          default: '0'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    SalesOrderCreate:
+      type: object
+      required: [warehouseId, lines]
+      properties:
+        orderNumber:
+          type: string
+        accountId:
+          type: string
+          format: uuid
+        contactId:
+          type: string
+          format: uuid
+        dealId:
+          type: string
+          format: uuid
+        warehouseId:
+          type: string
+          format: uuid
+        orderDate:
+          type: string
+          format: date
+        requestedDate:
+          type: string
+          format: date
+        currencyCode:
+          type: string
+          default: USD
+        discountAmount:
+          type: string
+          default: '0'
+        shippingAmount:
+          type: string
+          default: '0'
+        shippingAddress:
+          $ref: '#/components/schemas/Address'
+        billingAddress:
+          $ref: '#/components/schemas/Address'
+        notes:
+          type: string
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/SalesOrderLineCreate'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    SalesOrderUpdate:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+        requestedDate:
+          type: string
+          format: date
+        shippingAddress:
+          $ref: '#/components/schemas/Address'
+        billingAddress:
+          $ref: '#/components/schemas/Address'
+        notes:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesOrderLineCreate'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    SalesOrderCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/SalesOrder'

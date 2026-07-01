@@ -1,0 +1,789 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS Documents API
+  version: 1.0.0
+  description: |
+    REST API for the Documents & Storage bounded context (schema: `storage`).
+    Resources: Files, Folders, Upload (presigned), Share, Versions.
+servers:
+  - url: https://api.atlas.example.com
+security:
+  - bearerAuth: []
+tags:
+  - name: Folders
+  - name: Files
+  - name: Upload
+  - name: Share
+  - name: Versions
+paths:
+  /v1/organizations/{organizationId}/folders:
+    get:
+      operationId: listFolders
+      tags: [Folders]
+      summary: List folders
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: parentFolderId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: workspaceId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated folder list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FolderListResponse'
+    post:
+      operationId: createFolder
+      tags: [Folders]
+      summary: Create a folder
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FolderCreate'
+      responses:
+        '201':
+          description: Folder created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Folder'
+  /v1/organizations/{organizationId}/folders/{folderId}:
+    get:
+      operationId: getFolder
+      tags: [Folders]
+      summary: Get folder by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/folderId'
+      responses:
+        '200':
+          description: Folder details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Folder'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateFolder
+      tags: [Folders]
+      summary: Update a folder
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/folderId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FolderUpdate'
+      responses:
+        '200':
+          description: Folder updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Folder'
+    delete:
+      operationId: deleteFolder
+      tags: [Folders]
+      summary: Soft-delete a folder
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/folderId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '204':
+          description: Folder deleted
+  /v1/organizations/{organizationId}/files:
+    get:
+      operationId: listFiles
+      tags: [Files]
+      summary: List files
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: folderId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/FileStatus'
+        - name: isStarred
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated file list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileListResponse'
+  /v1/organizations/{organizationId}/files/{fileId}:
+    get:
+      operationId: getFile
+      tags: [Files]
+      summary: Get file metadata by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/fileId'
+      responses:
+        '200':
+          description: File metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateFile
+      tags: [Files]
+      summary: Update file metadata
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/fileId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileUpdate'
+      responses:
+        '200':
+          description: File updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+    delete:
+      operationId: deleteFile
+      tags: [Files]
+      summary: Soft-delete a file
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/fileId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '204':
+          description: File deleted
+  /v1/organizations/{organizationId}/files/upload:
+    post:
+      operationId: initiateFileUpload
+      tags: [Upload]
+      summary: Initiate presigned upload
+      x-atlas-latency-tier: standard
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileUploadInitiate'
+      responses:
+        '201':
+          description: Upload session created with presigned URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUploadSession'
+  /v1/organizations/{organizationId}/files/upload/{uploadId}/complete:
+    post:
+      operationId: completeFileUpload
+      tags: [Upload]
+      summary: Complete presigned upload and finalize file record
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/uploadId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileUploadComplete'
+      responses:
+        '200':
+          description: File finalized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+  /v1/organizations/{organizationId}/files/{fileId}/share:
+    post:
+      operationId: shareFile
+      tags: [Share]
+      summary: Grant share permissions on a file
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/fileId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileShareRequest'
+      responses:
+        '201':
+          description: Share permission granted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilePermission'
+    get:
+      operationId: listFileShares
+      tags: [Share]
+      summary: List share permissions for a file
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/fileId'
+      responses:
+        '200':
+          description: File permissions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FilePermission'
+  /v1/organizations/{organizationId}/files/{fileId}/download:
+    get:
+      operationId: getFileDownloadUrl
+      tags: [Files]
+      summary: Get presigned download URL
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/fileId'
+        - name: versionNumber
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Presigned download URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileDownloadUrl'
+  /v1/organizations/{organizationId}/files/{fileId}/versions:
+    get:
+      operationId: listFileVersions
+      tags: [Versions]
+      summary: List file versions
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/fileId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Paginated version list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileVersionListResponse'
+    post:
+      operationId: createFileVersion
+      tags: [Versions]
+      summary: Create a new file version (via upload completion)
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/fileId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileVersionCreate'
+      responses:
+        '201':
+          description: Version created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileVersion'
+  /v1/organizations/{organizationId}/files/{fileId}/versions/{versionNumber}:
+    get:
+      operationId: getFileVersion
+      tags: [Versions]
+      summary: Get specific file version
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/fileId'
+        - $ref: '#/components/parameters/versionNumber'
+      responses:
+        '200':
+          description: File version details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileVersion'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    organizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    folderId:
+      name: folderId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    fileId:
+      name: fileId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    uploadId:
+      name: uploadId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    versionNumber:
+      name: versionNumber
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ifMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+    Pagination:
+      type: object
+      required: [has_more, limit]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+    FileStatus:
+      type: string
+      enum: [pending, uploading, scanning, clean, infected, quarantined, rejected, deleted]
+    SensitivityClass:
+      type: string
+      enum: [public, standard, restricted, confidential]
+    FilePermissionGranteeType:
+      type: string
+      enum: [user, team, role, workspace]
+    FilePermissionLevel:
+      type: string
+      enum: [read, write, delete, share, admin]
+    Folder:
+      type: object
+      required: [id, organizationId, name, slug, path, depth]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        workspaceId:
+          type: string
+          format: uuid
+          nullable: true
+        parentFolderId:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        slug:
+          type: string
+        path:
+          type: string
+        depth:
+          type: integer
+        description:
+          type: string
+          nullable: true
+        color:
+          type: string
+          nullable: true
+        isSystem:
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+          format: uuid
+        version:
+          type: integer
+    FolderCreate:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        parentFolderId:
+          type: string
+          format: uuid
+        workspaceId:
+          type: string
+          format: uuid
+        description:
+          type: string
+        color:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    FolderUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        color:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    FolderListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Folder'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    File:
+      type: object
+      required: [id, organizationId, name, originalName, mimeType, sizeBytes, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        folderId:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        originalName:
+          type: string
+        mimeType:
+          type: string
+        extension:
+          type: string
+          nullable: true
+        sizeBytes:
+          type: string
+          description: int64 as string
+        status:
+          $ref: '#/components/schemas/FileStatus'
+        currentVersionNumber:
+          type: integer
+        isStarred:
+          type: boolean
+        sensitivityClass:
+          $ref: '#/components/schemas/SensitivityClass'
+        legalHold:
+          type: boolean
+        retentionUntil:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+          format: uuid
+        version:
+          type: integer
+    FileUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        folderId:
+          type: string
+          format: uuid
+        isStarred:
+          type: boolean
+        sensitivityClass:
+          $ref: '#/components/schemas/SensitivityClass'
+        metadata:
+          type: object
+          additionalProperties: true
+    FileListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/File'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    FileUploadInitiate:
+      type: object
+      required: [originalName, mimeType, sizeBytes]
+      properties:
+        originalName:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: string
+        folderId:
+          type: string
+          format: uuid
+        sensitivityClass:
+          $ref: '#/components/schemas/SensitivityClass'
+        metadata:
+          type: object
+          additionalProperties: true
+    FileUploadSession:
+      type: object
+      required: [uploadId, fileId, uploadUrl, expiresAt]
+      properties:
+        uploadId:
+          type: string
+          format: uuid
+        fileId:
+          type: string
+          format: uuid
+        uploadUrl:
+          type: string
+          format: uri
+        uploadMethod:
+          type: string
+          enum: [PUT, POST]
+        uploadHeaders:
+          type: object
+          additionalProperties:
+            type: string
+        expiresAt:
+          type: string
+          format: date-time
+    FileUploadComplete:
+      type: object
+      required: [contentHash]
+      properties:
+        contentHash:
+          type: string
+          description: SHA-256 hex digest
+        changeSummary:
+          type: string
+    FileDownloadUrl:
+      type: object
+      required: [downloadUrl, expiresAt]
+      properties:
+        downloadUrl:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+        versionNumber:
+          type: integer
+    FilePermission:
+      type: object
+      required: [id, fileId, granteeType, granteeId, permission]
+      properties:
+        id:
+          type: string
+          format: uuid
+        fileId:
+          type: string
+          format: uuid
+        granteeType:
+          $ref: '#/components/schemas/FilePermissionGranteeType'
+        granteeId:
+          type: string
+          format: uuid
+        permission:
+          $ref: '#/components/schemas/FilePermissionLevel'
+        grantedBy:
+          type: string
+          format: uuid
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    FileShareRequest:
+      type: object
+      required: [granteeType, granteeId, permission]
+      properties:
+        granteeType:
+          $ref: '#/components/schemas/FilePermissionGranteeType'
+        granteeId:
+          type: string
+          format: uuid
+        permission:
+          $ref: '#/components/schemas/FilePermissionLevel'
+        expiresAt:
+          type: string
+          format: date-time
+    FileVersion:
+      type: object
+      required: [id, fileId, versionNumber, sizeBytes, mimeType, createdBy]
+      properties:
+        id:
+          type: string
+          format: uuid
+        fileId:
+          type: string
+          format: uuid
+        versionNumber:
+          type: integer
+        isLatest:
+          type: boolean
+        sizeBytes:
+          type: string
+        mimeType:
+          type: string
+        changeSummary:
+          type: string
+          nullable: true
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+    FileVersionCreate:
+      type: object
+      required: [uploadId, contentHash]
+      properties:
+        uploadId:
+          type: string
+          format: uuid
+        contentHash:
+          type: string
+        changeSummary:
+          type: string
+    FileVersionListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileVersion'
+        pagination:
+          $ref: '#/components/schemas/Pagination'

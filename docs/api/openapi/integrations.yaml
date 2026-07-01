@@ -1,0 +1,1055 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS Integrations API
+  version: 1.0.0
+  description: |
+    REST API for the Integration Platform (schema: `integrations` / `atlas_core`).
+    Resources: Connectors, SyncJobs, WebhookSubscriptions, OAuthApps.
+    Aligns with ATLAS-ARCH-11 integrations architecture.
+servers:
+  - url: https://api.atlas.example.com
+security:
+  - bearerAuth: []
+tags:
+  - name: Connectors
+  - name: SyncJobs
+  - name: WebhookSubscriptions
+  - name: OAuthApps
+paths:
+  /v1/integrations/connectors/catalog:
+    get:
+      operationId: listConnectorCatalog
+      tags: [Connectors]
+      summary: List available pre-built connector types
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Connector catalog
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorCatalogListResponse'
+  /v1/organizations/{organizationId}/connectors:
+    get:
+      operationId: listConnectors
+      tags: [Connectors]
+      summary: List organization connector installations
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ConnectorStatus'
+        - name: connectorType
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated connector list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorListResponse'
+    post:
+      operationId: connectConnector
+      tags: [Connectors]
+      summary: Connect a new integration connector
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConnectorCreate'
+      responses:
+        '201':
+          description: Connector connection initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorConnectResponse'
+  /v1/organizations/{organizationId}/connectors/{connectorId}:
+    get:
+      operationId: getConnector
+      tags: [Connectors]
+      summary: Get connector by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/connectorId'
+      responses:
+        '200':
+          description: Connector details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connector'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateConnector
+      tags: [Connectors]
+      summary: Update connector configuration
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/connectorId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConnectorUpdate'
+      responses:
+        '200':
+          description: Connector updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connector'
+  /v1/organizations/{organizationId}/connectors/{connectorId}/disconnect:
+    post:
+      operationId: disconnectConnector
+      tags: [Connectors]
+      summary: Disconnect and revoke connector credentials
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/connectorId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Connector disconnected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connector'
+  /v1/organizations/{organizationId}/connectors/{connectorId}/health:
+    get:
+      operationId: getConnectorHealth
+      tags: [Connectors]
+      summary: Get connector health status
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/connectorId'
+      responses:
+        '200':
+          description: Connector health
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorHealth'
+  /v1/organizations/{organizationId}/sync-jobs:
+    get:
+      operationId: listSyncJobs
+      tags: [SyncJobs]
+      summary: List sync jobs
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: connectorId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/SyncJobStatus'
+        - name: entityType
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated sync job list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncJobListResponse'
+    post:
+      operationId: triggerSyncJob
+      tags: [SyncJobs]
+      summary: Trigger a sync job
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncJobCreate'
+      responses:
+        '202':
+          description: Sync job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncJob'
+  /v1/organizations/{organizationId}/sync-jobs/{syncJobId}:
+    get:
+      operationId: getSyncJob
+      tags: [SyncJobs]
+      summary: Get sync job by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/syncJobId'
+      responses:
+        '200':
+          description: Sync job details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncJob'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/organizations/{organizationId}/sync-jobs/{syncJobId}/cancel:
+    post:
+      operationId: cancelSyncJob
+      tags: [SyncJobs]
+      summary: Cancel a running sync job
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/syncJobId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: Sync job cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncJob'
+  /v1/organizations/{organizationId}/webhook-subscriptions:
+    get:
+      operationId: listWebhookSubscriptions
+      tags: [WebhookSubscriptions]
+      summary: List outbound webhook subscriptions
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: eventType
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated webhook subscription list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSubscriptionListResponse'
+    post:
+      operationId: createWebhookSubscription
+      tags: [WebhookSubscriptions]
+      summary: Create a webhook subscription
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookSubscriptionCreate'
+      responses:
+        '201':
+          description: Webhook subscription created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSubscription'
+  /v1/organizations/{organizationId}/webhook-subscriptions/{subscriptionId}:
+    get:
+      operationId: getWebhookSubscription
+      tags: [WebhookSubscriptions]
+      summary: Get webhook subscription by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/subscriptionId'
+      responses:
+        '200':
+          description: Webhook subscription details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSubscription'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateWebhookSubscription
+      tags: [WebhookSubscriptions]
+      summary: Update a webhook subscription
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/subscriptionId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookSubscriptionUpdate'
+      responses:
+        '200':
+          description: Webhook subscription updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSubscription'
+    delete:
+      operationId: deleteWebhookSubscription
+      tags: [WebhookSubscriptions]
+      summary: Delete a webhook subscription
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/subscriptionId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '204':
+          description: Webhook subscription deleted
+  /v1/organizations/{organizationId}/webhook-subscriptions/{subscriptionId}/test:
+    post:
+      operationId: testWebhookSubscription
+      tags: [WebhookSubscriptions]
+      summary: Send a test webhook delivery
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/subscriptionId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: Test delivery result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookTestResult'
+  /v1/organizations/{organizationId}/oauth-apps:
+    get:
+      operationId: listOAuthApps
+      tags: [OAuthApps]
+      summary: List OAuth applications (Atlas as OAuth provider)
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/OAuthAppStatus'
+      responses:
+        '200':
+          description: Paginated OAuth app list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthAppListResponse'
+    post:
+      operationId: createOAuthApp
+      tags: [OAuthApps]
+      summary: Register an OAuth application
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OAuthAppCreate'
+      responses:
+        '201':
+          description: OAuth app created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthAppCreateResponse'
+  /v1/organizations/{organizationId}/oauth-apps/{oauthAppId}:
+    get:
+      operationId: getOAuthApp
+      tags: [OAuthApps]
+      summary: Get OAuth application by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/oauthAppId'
+      responses:
+        '200':
+          description: OAuth app details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthApp'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateOAuthApp
+      tags: [OAuthApps]
+      summary: Update OAuth application
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/oauthAppId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OAuthAppUpdate'
+      responses:
+        '200':
+          description: OAuth app updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthApp'
+  /v1/organizations/{organizationId}/oauth-apps/{oauthAppId}/rotate-secret:
+    post:
+      operationId: rotateOAuthAppSecret
+      tags: [OAuthApps]
+      summary: Rotate OAuth client secret
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/oauthAppId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: Secret rotated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthAppSecretResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    organizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    connectorId:
+      name: connectorId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    syncJobId:
+      name: syncJobId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    subscriptionId:
+      name: subscriptionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    oauthAppId:
+      name: oauthAppId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ifMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+    Pagination:
+      type: object
+      required: [has_more, limit]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+    ConnectorStatus:
+      type: string
+      enum: [pending_auth, active, paused, error, disconnected]
+    ConnectorHealthStatus:
+      type: string
+      enum: [healthy, degraded, unhealthy, disconnected, unknown]
+    SyncDirection:
+      type: string
+      enum: [inbound, outbound, bidirectional]
+    SyncStrategy:
+      type: string
+      enum: [polling, webhook, cdc]
+    SyncJobStatus:
+      type: string
+      enum: [queued, running, completed, failed, cancelled]
+    ConflictPolicy:
+      type: string
+      enum: [atlas_wins, external_wins, last_write_wins, field_level, manual_queue]
+    OAuthAppStatus:
+      type: string
+      enum: [draft, active, suspended, revoked]
+    OAuthAppType:
+      type: string
+      enum: [confidential, public]
+    ConnectorCatalogEntry:
+      type: object
+      required: [connectorType, name, authMethod]
+      properties:
+        connectorType:
+          type: string
+          description: e.g. quickbooks, salesforce, slack
+        name:
+          type: string
+        description:
+          type: string
+        authMethod:
+          type: string
+          enum: [oauth2, bot_token, service_account]
+        supportedEntities:
+          type: array
+          items:
+            type: string
+        defaultDirection:
+          $ref: '#/components/schemas/SyncDirection'
+        categories:
+          type: array
+          items:
+            type: string
+    Connector:
+      type: object
+      required: [id, organizationId, connectorType, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        connectorType:
+          type: string
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/ConnectorStatus'
+        healthStatus:
+          $ref: '#/components/schemas/ConnectorHealthStatus'
+        syncDirection:
+          $ref: '#/components/schemas/SyncDirection'
+        syncStrategy:
+          $ref: '#/components/schemas/SyncStrategy'
+        entityMappings:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityMapping'
+        lastSyncAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastSyncLagSeconds:
+          type: integer
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+        config:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+        connectedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    EntityMapping:
+      type: object
+      required: [entityType, direction]
+      properties:
+        entityType:
+          type: string
+        externalType:
+          type: string
+        direction:
+          $ref: '#/components/schemas/SyncDirection'
+        conflictPolicy:
+          $ref: '#/components/schemas/ConflictPolicy'
+        fieldMappings:
+          type: array
+          items:
+            type: object
+            properties:
+              atlas:
+                type: string
+              external:
+                type: string
+              transform:
+                type: string
+    ConnectorCreate:
+      type: object
+      required: [connectorType]
+      properties:
+        connectorType:
+          type: string
+        name:
+          type: string
+        syncDirection:
+          $ref: '#/components/schemas/SyncDirection'
+        entityMappings:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityMapping'
+        config:
+          type: object
+          additionalProperties: true
+        redirectUri:
+          type: string
+          format: uri
+          description: OAuth callback URI for authorization flow
+    ConnectorConnectResponse:
+      type: object
+      required: [connector]
+      properties:
+        connector:
+          $ref: '#/components/schemas/Connector'
+        authorizationUrl:
+          type: string
+          format: uri
+          description: Present when OAuth authorization is required
+    ConnectorUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/ConnectorStatus'
+        entityMappings:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityMapping'
+        config:
+          type: object
+          additionalProperties: true
+    ConnectorHealth:
+      type: object
+      required: [connectorId, healthStatus, checkedAt]
+      properties:
+        connectorId:
+          type: string
+          format: uuid
+        healthStatus:
+          $ref: '#/components/schemas/ConnectorHealthStatus'
+        lastSyncAt:
+          type: string
+          format: date-time
+          nullable: true
+        syncLagSeconds:
+          type: integer
+          nullable: true
+        errorRatePct:
+          type: number
+          nullable: true
+        conflictQueueDepth:
+          type: integer
+        checkedAt:
+          type: string
+          format: date-time
+        details:
+          type: object
+          additionalProperties: true
+    ConnectorCatalogListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConnectorCatalogEntry'
+    ConnectorListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Connector'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    SyncJob:
+      type: object
+      required: [id, organizationId, connectorId, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        connectorId:
+          type: string
+          format: uuid
+        entityType:
+          type: string
+          nullable: true
+        syncType:
+          type: string
+          enum: [initial, incremental, reconciliation, webhook_triggered]
+        status:
+          $ref: '#/components/schemas/SyncJobStatus'
+        strategy:
+          $ref: '#/components/schemas/SyncStrategy'
+        recordsProcessed:
+          type: integer
+        recordsFailed:
+          type: integer
+        recordsCreated:
+          type: integer
+        recordsUpdated:
+          type: integer
+        progressPct:
+          type: number
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+        cursor:
+          type: object
+          additionalProperties: true
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    SyncJobCreate:
+      type: object
+      required: [connectorId]
+      properties:
+        connectorId:
+          type: string
+          format: uuid
+        entityType:
+          type: string
+        syncType:
+          type: string
+          enum: [initial, incremental, reconciliation]
+        fullResync:
+          type: boolean
+          default: false
+    SyncJobListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SyncJob'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    WebhookSubscription:
+      type: object
+      required: [id, organizationId, url, eventTypes, isActive]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        description:
+          type: string
+          nullable: true
+        eventTypes:
+          type: array
+          items:
+            type: string
+          description: CloudEvents type filters (e.g. atlas.deal.stage_changed)
+        secretPrefix:
+          type: string
+          description: First 8 chars of signing secret for identification
+        isActive:
+          type: boolean
+        failureCount:
+          type: integer
+        lastDeliveredAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastFailureAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    WebhookSubscriptionCreate:
+      type: object
+      required: [url, eventTypes]
+      properties:
+        url:
+          type: string
+          format: uri
+        description:
+          type: string
+        eventTypes:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        metadata:
+          type: object
+          additionalProperties: true
+    WebhookSubscriptionUpdate:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+        description:
+          type: string
+        eventTypes:
+          type: array
+          items:
+            type: string
+        isActive:
+          type: boolean
+    WebhookTestResult:
+      type: object
+      required: [success, statusCode]
+      properties:
+        success:
+          type: boolean
+        statusCode:
+          type: integer
+        responseTimeMs:
+          type: integer
+        errorMessage:
+          type: string
+          nullable: true
+    WebhookSubscriptionListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookSubscription'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    OAuthApp:
+      type: object
+      required: [id, organizationId, name, clientId, appType, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        clientId:
+          type: string
+        appType:
+          $ref: '#/components/schemas/OAuthAppType'
+        redirectUris:
+          type: array
+          items:
+            type: string
+            format: uri
+        scopes:
+          type: array
+          items:
+            type: string
+        status:
+          $ref: '#/components/schemas/OAuthAppStatus'
+        webhookEventTypes:
+          type: array
+          items:
+            type: string
+        rateLimitTier:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    OAuthAppCreate:
+      type: object
+      required: [name, redirectUris, scopes]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        appType:
+          $ref: '#/components/schemas/OAuthAppType'
+        redirectUris:
+          type: array
+          items:
+            type: string
+            format: uri
+          minItems: 1
+        scopes:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        webhookEventTypes:
+          type: array
+          items:
+            type: string
+    OAuthAppCreateResponse:
+      allOf:
+        - $ref: '#/components/schemas/OAuthApp'
+        - type: object
+          required: [clientSecret]
+          properties:
+            clientSecret:
+              type: string
+              description: Shown once at creation
+    OAuthAppUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        redirectUris:
+          type: array
+          items:
+            type: string
+            format: uri
+        scopes:
+          type: array
+          items:
+            type: string
+        status:
+          $ref: '#/components/schemas/OAuthAppStatus'
+    OAuthAppSecretResponse:
+      type: object
+      required: [clientSecret]
+      properties:
+        clientSecret:
+          type: string
+          description: Shown once after rotation
+    OAuthAppListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/OAuthApp'
+        pagination:
+          $ref: '#/components/schemas/Pagination'

@@ -1,0 +1,2017 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS Finance API
+  version: 1.0.0
+  description: |
+    Finance and accounting API for Atlas BOS.
+    Manages chart of accounts, journal entries, invoices, payments, bank accounts, and budgets.
+    Aligned with `ledger` schema (ATLAS-DB-07).
+  contact:
+    name: Atlas Platform API Team
+    url: https://docs.atlas.example.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.atlas.example.com
+    description: Production
+  - url: https://api.staging.atlas.example.com
+    description: Staging
+  - url: http://localhost:3000
+    description: Local development
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+tags:
+  - name: ChartOfAccounts
+    description: General ledger account hierarchy
+  - name: JournalEntries
+    description: Double-entry journal entries
+  - name: Invoices
+    description: Sales and purchase invoices
+  - name: Payments
+    description: Payment receipts and disbursements
+  - name: BankAccounts
+    description: Bank account management
+  - name: Budgets
+    description: Budget planning by account and period
+  - name: Reconciliations
+    description: Bank reconciliation
+
+paths:
+  /v1/organizations/{organizationId}/chart-of-accounts:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [ChartOfAccounts]
+      operationId: listChartOfAccounts
+      summary: List chart of accounts
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: accountType
+          in: query
+          schema:
+            $ref: '#/components/schemas/AccountType'
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: parentAccountId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of GL accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChartOfAccountCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [ChartOfAccounts]
+      operationId: createChartOfAccount
+      summary: Create GL account
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChartOfAccountCreate'
+      responses:
+        '201':
+          description: GL account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChartOfAccount'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/chart-of-accounts/{accountId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      tags: [ChartOfAccounts]
+      operationId: getChartOfAccount
+      summary: Get GL account by ID
+      responses:
+        '200':
+          description: GL account details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChartOfAccount'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [ChartOfAccounts]
+      operationId: updateChartOfAccount
+      summary: Update GL account
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChartOfAccountUpdate'
+      responses:
+        '200':
+          description: GL account updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChartOfAccount'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [ChartOfAccounts]
+      operationId: deleteChartOfAccount
+      summary: Soft-delete GL account
+      description: System accounts cannot be deleted.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: GL account deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/journal-entries:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [JournalEntries]
+      operationId: listJournalEntries
+      summary: List journal entries
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/JournalEntryStatus'
+        - name: entryType
+          in: query
+          schema:
+            $ref: '#/components/schemas/JournalEntryType'
+        - name: fromDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: toDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of journal entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JournalEntryCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [JournalEntries]
+      operationId: createJournalEntry
+      summary: Create journal entry
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JournalEntryCreate'
+      responses:
+        '201':
+          description: Journal entry created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JournalEntry'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/journal-entries/{journalEntryId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/JournalEntryId'
+    get:
+      tags: [JournalEntries]
+      operationId: getJournalEntry
+      summary: Get journal entry by ID
+      responses:
+        '200':
+          description: Journal entry details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JournalEntry'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [JournalEntries]
+      operationId: updateJournalEntry
+      summary: Update draft journal entry
+      description: Posted entries are immutable; use reversal instead.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JournalEntryUpdate'
+      responses:
+        '200':
+          description: Journal entry updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JournalEntry'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [JournalEntries]
+      operationId: deleteJournalEntry
+      summary: Soft-delete draft journal entry
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Journal entry deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/invoices:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Invoices]
+      operationId: listInvoices
+      summary: List invoices
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/InvoiceStatus'
+        - name: invoiceType
+          in: query
+          schema:
+            $ref: '#/components/schemas/InvoiceType'
+        - name: accountId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of invoices
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Invoices]
+      operationId: createInvoice
+      summary: Create invoice
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvoiceCreate'
+      responses:
+        '201':
+          description: Invoice created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/invoices/{invoiceId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/InvoiceId'
+    get:
+      tags: [Invoices]
+      operationId: getInvoice
+      summary: Get invoice by ID
+      responses:
+        '200':
+          description: Invoice details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Invoices]
+      operationId: updateInvoice
+      summary: Update invoice
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvoiceUpdate'
+      responses:
+        '200':
+          description: Invoice updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Invoices]
+      operationId: deleteInvoice
+      summary: Soft-delete invoice
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Invoice deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/invoices/{invoiceId}/send:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/InvoiceId'
+    post:
+      tags: [Invoices]
+      operationId: sendInvoice
+      summary: Send invoice to customer
+      description: |
+        Transitions invoice from `draft` to `sent`. Creates journal entry if configured.
+        Emits `ledger.invoice.posted.v1` domain event.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendInvoiceRequest'
+      responses:
+        '200':
+          description: Invoice sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/payments:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Payments]
+      operationId: listPayments
+      summary: List payments
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/PaymentStatus'
+        - name: paymentType
+          in: query
+          schema:
+            $ref: '#/components/schemas/PaymentType'
+        - name: accountId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of payments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Payments]
+      operationId: createPayment
+      summary: Create payment
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentCreate'
+      responses:
+        '201':
+          description: Payment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/payments/{paymentId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/PaymentId'
+    get:
+      tags: [Payments]
+      operationId: getPayment
+      summary: Get payment by ID
+      responses:
+        '200':
+          description: Payment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Payments]
+      operationId: updatePayment
+      summary: Update payment
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentUpdate'
+      responses:
+        '200':
+          description: Payment updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Payments]
+      operationId: deletePayment
+      summary: Soft-delete payment
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Payment deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/payments/record:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    post:
+      tags: [Payments]
+      operationId: recordPayment
+      summary: Record payment with invoice allocations
+      description: |
+        Creates a completed payment and allocates to one or more invoices.
+        Emits `ledger.payment.received.v1` domain event.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordPaymentRequest'
+      responses:
+        '201':
+          description: Payment recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordPaymentResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/bank-accounts:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [BankAccounts]
+      operationId: listBankAccounts
+      summary: List bank accounts
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated list of bank accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccountCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [BankAccounts]
+      operationId: createBankAccount
+      summary: Create bank account
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BankAccountCreate'
+      responses:
+        '201':
+          description: Bank account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccount'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/bank-accounts/{bankAccountId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/BankAccountId'
+    get:
+      tags: [BankAccounts]
+      operationId: getBankAccount
+      summary: Get bank account by ID
+      responses:
+        '200':
+          description: Bank account details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccount'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [BankAccounts]
+      operationId: updateBankAccount
+      summary: Update bank account
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BankAccountUpdate'
+      responses:
+        '200':
+          description: Bank account updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccount'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [BankAccounts]
+      operationId: deleteBankAccount
+      summary: Soft-delete bank account
+      description: Blocked if open reconciliation exists.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Bank account deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/bank-accounts/{bankAccountId}/reconcile:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/BankAccountId'
+    post:
+      tags: [Reconciliations]
+      operationId: reconcileBankAccount
+      summary: Complete bank reconciliation
+      description: |
+        Creates or completes a reconciliation period matching bank statement
+        to book balance. Completed reconciliations are immutable.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconcileRequest'
+      responses:
+        '200':
+          description: Reconciliation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reconciliation'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/reconciliations:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Reconciliations]
+      operationId: listReconciliations
+      summary: List reconciliations
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: bankAccountId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ReconciliationStatus'
+      responses:
+        '200':
+          description: Paginated list of reconciliations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/reconciliations/{reconciliationId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/ReconciliationId'
+    get:
+      tags: [Reconciliations]
+      operationId: getReconciliation
+      summary: Get reconciliation by ID
+      responses:
+        '200':
+          description: Reconciliation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reconciliation'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/budgets:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Budgets]
+      operationId: listBudgets
+      summary: List budgets
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: fiscalYear
+          in: query
+          schema:
+            type: integer
+        - name: accountId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of budgets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Budgets]
+      operationId: createBudget
+      summary: Create budget
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BudgetCreate'
+      responses:
+        '201':
+          description: Budget created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/budgets/{budgetId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/BudgetId'
+    get:
+      tags: [Budgets]
+      operationId: getBudget
+      summary: Get budget by ID
+      responses:
+        '200':
+          description: Budget details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Budgets]
+      operationId: updateBudget
+      summary: Update budget
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BudgetUpdate'
+      responses:
+        '200':
+          description: Budget updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Budgets]
+      operationId: deleteBudget
+      summary: Soft-delete budget
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Budget deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+
+  parameters:
+    OrganizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    JournalEntryId:
+      name: journalEntryId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    InvoiceId:
+      name: invoiceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PaymentId:
+      name: paymentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    BankAccountId:
+      name: bankAccountId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ReconciliationId:
+      name: reconciliationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    BudgetId:
+      name: budgetId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Sort:
+      name: sort
+      in: query
+      schema:
+        type: string
+        default: -createdAt
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IfMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+
+  responses:
+    Problem:
+      description: RFC 7807 Problem Details
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        requestId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+    FieldError:
+      type: object
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+
+    Pagination:
+      type: object
+      required: [hasMore, limit]
+      properties:
+        hasMore:
+          type: boolean
+        nextCursor:
+          type: [string, 'null']
+        prevCursor:
+          type: [string, 'null']
+        limit:
+          type: integer
+
+    CursorPage:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items: {}
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    AuditFields:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: [string, 'null']
+          format: date-time
+        createdBy:
+          type: [string, 'null']
+          format: uuid
+        updatedBy:
+          type: [string, 'null']
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+
+    Address:
+      type: object
+      additionalProperties: true
+
+    AccountType:
+      type: string
+      enum: [asset, liability, equity, revenue, expense]
+
+    NormalBalance:
+      type: string
+      enum: [debit, credit]
+
+    ChartOfAccount:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, code, name, accountType, normalBalance, isActive, isSystem, isHeader, currencyCode]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            parentAccountId:
+              type: [string, 'null']
+              format: uuid
+            code:
+              type: string
+            name:
+              type: string
+            description:
+              type: [string, 'null']
+            accountType:
+              $ref: '#/components/schemas/AccountType'
+            accountSubtype:
+              type: [string, 'null']
+            normalBalance:
+              $ref: '#/components/schemas/NormalBalance'
+            isActive:
+              type: boolean
+            isSystem:
+              type: boolean
+            isHeader:
+              type: boolean
+            currencyCode:
+              type: string
+              minLength: 3
+              maxLength: 3
+            metadata:
+              type: object
+              additionalProperties: true
+
+    ChartOfAccountCreate:
+      type: object
+      required: [code, name, accountType, normalBalance]
+      properties:
+        parentAccountId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        accountType:
+          $ref: '#/components/schemas/AccountType'
+        accountSubtype:
+          type: string
+        normalBalance:
+          $ref: '#/components/schemas/NormalBalance'
+        isActive:
+          type: boolean
+          default: true
+        isHeader:
+          type: boolean
+          default: false
+        currencyCode:
+          type: string
+          default: USD
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ChartOfAccountUpdate:
+      allOf:
+        - $ref: '#/components/schemas/ChartOfAccountCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+
+    ChartOfAccountCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/ChartOfAccount'
+
+    JournalEntryStatus:
+      type: string
+      enum: [draft, posted, reversed]
+
+    JournalEntryType:
+      type: string
+      enum: [standard, adjusting, closing, reversing, system]
+
+    JournalLine:
+      type: object
+      required: [id, lineNumber, accountId, debitAmount, creditAmount, currencyCode]
+      properties:
+        id:
+          type: string
+          format: uuid
+        lineNumber:
+          type: integer
+        accountId:
+          type: string
+          format: uuid
+        description:
+          type: [string, 'null']
+        debitAmount:
+          type: string
+        creditAmount:
+          type: string
+        currencyCode:
+          type: string
+          minLength: 3
+          maxLength: 3
+        taxRateId:
+          type: [string, 'null']
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+
+    JournalEntry:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, entryNumber, entryDate, status, entryType, description, currencyCode, totalDebit, totalCredit, lines]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            entryNumber:
+              type: string
+            entryDate:
+              type: string
+              format: date
+            postingDate:
+              type: [string, 'null']
+              format: date
+            status:
+              $ref: '#/components/schemas/JournalEntryStatus'
+            entryType:
+              $ref: '#/components/schemas/JournalEntryType'
+            description:
+              type: string
+            referenceType:
+              type: [string, 'null']
+            referenceId:
+              type: [string, 'null']
+              format: uuid
+            currencyCode:
+              type: string
+              minLength: 3
+              maxLength: 3
+            totalDebit:
+              type: string
+            totalCredit:
+              type: string
+            reversedEntryId:
+              type: [string, 'null']
+              format: uuid
+            postedBy:
+              type: [string, 'null']
+              format: uuid
+            postedAt:
+              type: [string, 'null']
+              format: date-time
+            lines:
+              type: array
+              items:
+                $ref: '#/components/schemas/JournalLine'
+            metadata:
+              type: object
+              additionalProperties: true
+
+    JournalLineCreate:
+      type: object
+      required: [accountId]
+      properties:
+        lineNumber:
+          type: integer
+        accountId:
+          type: string
+          format: uuid
+        description:
+          type: string
+        debitAmount:
+          type: string
+          default: '0'
+        creditAmount:
+          type: string
+          default: '0'
+        currencyCode:
+          type: string
+          default: USD
+        taxRateId:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+
+    JournalEntryCreate:
+      type: object
+      required: [description, lines]
+      properties:
+        entryNumber:
+          type: string
+        entryDate:
+          type: string
+          format: date
+        entryType:
+          $ref: '#/components/schemas/JournalEntryType'
+        description:
+          type: string
+        referenceType:
+          type: string
+        referenceId:
+          type: string
+          format: uuid
+        currencyCode:
+          type: string
+          default: USD
+        lines:
+          type: array
+          minItems: 2
+          items:
+            $ref: '#/components/schemas/JournalLineCreate'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    JournalEntryUpdate:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+        entryDate:
+          type: string
+          format: date
+        description:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/JournalLineCreate'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    JournalEntryCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/JournalEntry'
+
+    InvoiceType:
+      type: string
+      enum: [sales, purchase, credit_note, debit_note]
+
+    InvoiceStatus:
+      type: string
+      enum: [draft, sent, partial, paid, overdue, void]
+
+    InvoiceLine:
+      type: object
+      required: [id, lineNumber, description, quantity, unitPrice, discountAmount, taxAmount, lineTotal]
+      properties:
+        id:
+          type: string
+          format: uuid
+        lineNumber:
+          type: integer
+        description:
+          type: string
+        productVariantId:
+          type: [string, 'null']
+          format: uuid
+        quantity:
+          type: string
+        unitPrice:
+          type: string
+        discountAmount:
+          type: string
+        taxRateId:
+          type: [string, 'null']
+          format: uuid
+        taxAmount:
+          type: string
+        lineTotal:
+          type: string
+        glAccountId:
+          type: [string, 'null']
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+
+    Invoice:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, invoiceNumber, invoiceType, status, issueDate, dueDate, currencyCode, subtotal, discountAmount, taxAmount, totalAmount, amountPaid, balanceDue, lines]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            invoiceNumber:
+              type: string
+            invoiceType:
+              $ref: '#/components/schemas/InvoiceType'
+            accountId:
+              type: [string, 'null']
+              format: uuid
+            salesOrderId:
+              type: [string, 'null']
+              format: uuid
+            status:
+              $ref: '#/components/schemas/InvoiceStatus'
+            issueDate:
+              type: string
+              format: date
+            dueDate:
+              type: string
+              format: date
+            currencyCode:
+              type: string
+              minLength: 3
+              maxLength: 3
+            subtotal:
+              type: string
+            discountAmount:
+              type: string
+            taxAmount:
+              type: string
+            totalAmount:
+              type: string
+            amountPaid:
+              type: string
+            balanceDue:
+              type: string
+              description: Computed as totalAmount - amountPaid
+            billingAddress:
+              $ref: '#/components/schemas/Address'
+            notes:
+              type: [string, 'null']
+            terms:
+              type: [string, 'null']
+            journalEntryId:
+              type: [string, 'null']
+              format: uuid
+            lines:
+              type: array
+              items:
+                $ref: '#/components/schemas/InvoiceLine'
+            metadata:
+              type: object
+              additionalProperties: true
+
+    InvoiceLineCreate:
+      type: object
+      required: [description, quantity, unitPrice]
+      properties:
+        lineNumber:
+          type: integer
+        description:
+          type: string
+        productVariantId:
+          type: string
+          format: uuid
+        quantity:
+          type: string
+          default: '1'
+        unitPrice:
+          type: string
+        discountAmount:
+          type: string
+          default: '0'
+        taxRateId:
+          type: string
+          format: uuid
+        glAccountId:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+
+    InvoiceCreate:
+      type: object
+      required: [dueDate, lines]
+      properties:
+        invoiceNumber:
+          type: string
+        invoiceType:
+          $ref: '#/components/schemas/InvoiceType'
+        accountId:
+          type: string
+          format: uuid
+        salesOrderId:
+          type: string
+          format: uuid
+        issueDate:
+          type: string
+          format: date
+        dueDate:
+          type: string
+          format: date
+        currencyCode:
+          type: string
+          default: USD
+        discountAmount:
+          type: string
+          default: '0'
+        billingAddress:
+          $ref: '#/components/schemas/Address'
+        notes:
+          type: string
+        terms:
+          type: string
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/InvoiceLineCreate'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    InvoiceUpdate:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+        dueDate:
+          type: string
+          format: date
+        billingAddress:
+          $ref: '#/components/schemas/Address'
+        notes:
+          type: string
+        terms:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvoiceLineCreate'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    InvoiceCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Invoice'
+
+    SendInvoiceRequest:
+      type: object
+      properties:
+        version:
+          type: integer
+        recipientEmail:
+          type: string
+          format: email
+        message:
+          type: string
+        postToLedger:
+          type: boolean
+          default: true
+
+    PaymentType:
+      type: string
+      enum: [receipt, disbursement, refund, transfer]
+
+    PaymentMethod:
+      type: string
+      enum: [cash, check, bank_transfer, credit_card, ach, wire, stripe, other]
+
+    PaymentStatus:
+      type: string
+      enum: [pending, completed, failed, void]
+
+    PaymentAllocation:
+      type: object
+      required: [id, paymentId, invoiceId, amount, allocatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        paymentId:
+          type: string
+          format: uuid
+        invoiceId:
+          type: string
+          format: uuid
+        amount:
+          type: string
+        allocatedAt:
+          type: string
+          format: date-time
+        notes:
+          type: [string, 'null']
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: [string, 'null']
+          format: uuid
+
+    Payment:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, paymentNumber, paymentType, paymentMethod, status, paymentDate, currencyCode, amount, amountAllocated, amountUnallocated]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            paymentNumber:
+              type: string
+            paymentType:
+              $ref: '#/components/schemas/PaymentType'
+            paymentMethod:
+              $ref: '#/components/schemas/PaymentMethod'
+            status:
+              $ref: '#/components/schemas/PaymentStatus'
+            accountId:
+              type: [string, 'null']
+              format: uuid
+            bankAccountId:
+              type: [string, 'null']
+              format: uuid
+            paymentDate:
+              type: string
+              format: date
+            currencyCode:
+              type: string
+              minLength: 3
+              maxLength: 3
+            amount:
+              type: string
+            amountAllocated:
+              type: string
+            amountUnallocated:
+              type: string
+              description: Computed as amount - amountAllocated
+            exchangeRate:
+              type: string
+            referenceNumber:
+              type: [string, 'null']
+            stripePaymentId:
+              type: [string, 'null']
+            journalEntryId:
+              type: [string, 'null']
+              format: uuid
+            notes:
+              type: [string, 'null']
+            allocations:
+              type: array
+              items:
+                $ref: '#/components/schemas/PaymentAllocation'
+            metadata:
+              type: object
+              additionalProperties: true
+
+    PaymentCreate:
+      type: object
+      required: [amount, paymentDate]
+      properties:
+        paymentNumber:
+          type: string
+        paymentType:
+          $ref: '#/components/schemas/PaymentType'
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+        accountId:
+          type: string
+          format: uuid
+        bankAccountId:
+          type: string
+          format: uuid
+        paymentDate:
+          type: string
+          format: date
+        currencyCode:
+          type: string
+          default: USD
+        amount:
+          type: string
+        exchangeRate:
+          type: string
+          default: '1'
+        referenceNumber:
+          type: string
+        stripePaymentId:
+          type: string
+        notes:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    PaymentUpdate:
+      allOf:
+        - $ref: '#/components/schemas/PaymentCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+            status:
+              $ref: '#/components/schemas/PaymentStatus'
+
+    PaymentCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Payment'
+
+    PaymentAllocationCreate:
+      type: object
+      required: [invoiceId, amount]
+      properties:
+        invoiceId:
+          type: string
+          format: uuid
+        amount:
+          type: string
+        notes:
+          type: string
+
+    RecordPaymentRequest:
+      type: object
+      required: [amount, paymentDate, allocations]
+      properties:
+        paymentNumber:
+          type: string
+        paymentType:
+          $ref: '#/components/schemas/PaymentType'
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+        accountId:
+          type: string
+          format: uuid
+        bankAccountId:
+          type: string
+          format: uuid
+        paymentDate:
+          type: string
+          format: date
+        currencyCode:
+          type: string
+          default: USD
+        amount:
+          type: string
+        exchangeRate:
+          type: string
+          default: '1'
+        referenceNumber:
+          type: string
+        stripePaymentId:
+          type: string
+        notes:
+          type: string
+        allocations:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/PaymentAllocationCreate'
+        postToLedger:
+          type: boolean
+          default: true
+        metadata:
+          type: object
+          additionalProperties: true
+
+    RecordPaymentResponse:
+      type: object
+      required: [payment, invoices]
+      properties:
+        payment:
+          $ref: '#/components/schemas/Payment'
+        invoices:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invoice'
+        journalEntry:
+          $ref: '#/components/schemas/JournalEntry'
+
+    BankAccountType:
+      type: string
+      enum: [checking, savings, credit_card, merchant, other]
+
+    BankAccount:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, glAccountId, name, accountNumber, accountNumberLast4, currencyCode, accountType, currentBalance, isActive, isPrimary]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            glAccountId:
+              type: string
+              format: uuid
+            name:
+              type: string
+            bankName:
+              type: [string, 'null']
+            accountNumber:
+              type: string
+              description: Full account number (masked in responses for non-privileged users)
+            accountNumberLast4:
+              type: string
+              minLength: 4
+              maxLength: 4
+            routingNumber:
+              type: [string, 'null']
+            iban:
+              type: [string, 'null']
+            swiftCode:
+              type: [string, 'null']
+            currencyCode:
+              type: string
+              minLength: 3
+              maxLength: 3
+            accountType:
+              $ref: '#/components/schemas/BankAccountType'
+            currentBalance:
+              type: string
+            isActive:
+              type: boolean
+            isPrimary:
+              type: boolean
+            plaidItemId:
+              type: [string, 'null']
+            stripeAccountId:
+              type: [string, 'null']
+            metadata:
+              type: object
+              additionalProperties: true
+
+    BankAccountCreate:
+      type: object
+      required: [glAccountId, name, accountNumber]
+      properties:
+        glAccountId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        bankName:
+          type: string
+        accountNumber:
+          type: string
+        routingNumber:
+          type: string
+        iban:
+          type: string
+        swiftCode:
+          type: string
+        currencyCode:
+          type: string
+          default: USD
+        accountType:
+          $ref: '#/components/schemas/BankAccountType'
+        currentBalance:
+          type: string
+          default: '0'
+        isActive:
+          type: boolean
+          default: true
+        isPrimary:
+          type: boolean
+          default: false
+        plaidItemId:
+          type: string
+        stripeAccountId:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    BankAccountUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BankAccountCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+
+    BankAccountCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/BankAccount'
+
+    ReconciliationStatus:
+      type: string
+      enum: [in_progress, completed, void]
+
+    Reconciliation:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, bankAccountId, status, periodStart, periodEnd, statementDate, statementBalance, bookBalance]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            bankAccountId:
+              type: string
+              format: uuid
+            status:
+              $ref: '#/components/schemas/ReconciliationStatus'
+            periodStart:
+              type: string
+              format: date
+            periodEnd:
+              type: string
+              format: date
+            statementDate:
+              type: string
+              format: date
+            statementBalance:
+              type: string
+            bookBalance:
+              type: string
+            reconciledBalance:
+              type: [string, 'null']
+            differenceAmount:
+              type: [string, 'null']
+              description: Computed as statementBalance - reconciledBalance (or bookBalance)
+            completedBy:
+              type: [string, 'null']
+              format: uuid
+            completedAt:
+              type: [string, 'null']
+              format: date-time
+            notes:
+              type: [string, 'null']
+            metadata:
+              type: object
+              additionalProperties: true
+
+    ReconcileRequest:
+      type: object
+      required: [periodStart, periodEnd, statementDate, statementBalance, reconciledBalance]
+      properties:
+        periodStart:
+          type: string
+          format: date
+        periodEnd:
+          type: string
+          format: date
+        statementDate:
+          type: string
+          format: date
+        statementBalance:
+          type: string
+        reconciledBalance:
+          type: string
+        matchedTransactionIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Payment or journal entry IDs matched to statement
+        notes:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ReconciliationCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Reconciliation'
+
+    Budget:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, accountId, fiscalYear, period, budgetAmount, actualAmount, varianceAmount, currencyCode]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            accountId:
+              type: string
+              format: uuid
+            fiscalYear:
+              type: integer
+            period:
+              type: integer
+              minimum: 1
+              maximum: 12
+            budgetAmount:
+              type: string
+            actualAmount:
+              type: string
+            varianceAmount:
+              type: string
+              description: Computed as budgetAmount - actualAmount
+            currencyCode:
+              type: string
+              minLength: 3
+              maxLength: 3
+            notes:
+              type: [string, 'null']
+            metadata:
+              type: object
+              additionalProperties: true
+
+    BudgetCreate:
+      type: object
+      required: [accountId, fiscalYear, period, budgetAmount]
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        fiscalYear:
+          type: integer
+        period:
+          type: integer
+          minimum: 1
+          maximum: 12
+        budgetAmount:
+          type: string
+        currencyCode:
+          type: string
+          default: USD
+        notes:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    BudgetUpdate:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+        budgetAmount:
+          type: string
+        notes:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    BudgetCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Budget'

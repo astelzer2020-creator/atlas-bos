@@ -1,0 +1,1973 @@
+openapi: 3.1.0
+info:
+  title: Atlas Platform API
+  version: 1.0.0
+  description: |
+    Platform core REST API for Atlas BOS — workspaces, organizations, teams,
+    members, invitations, current user profile, and session management.
+
+    Aligns with database schemas `atlas_core.workspaces`, `atlas_core.organizations`,
+    `atlas_core.teams`, `atlas_core.organization_members`, `atlas_core.invitations`,
+    `atlas_core.users`, and `atlas_core.sessions`.
+
+    See [00-conventions.md](../00-conventions.md) for REST conventions, pagination,
+    error format, idempotency, and versioning.
+  contact:
+    name: Atlas Platform API Team
+    url: https://docs.atlas.example.com/api
+  license:
+    name: Proprietary
+    url: https://atlas.example.com/terms
+  x-atlas-api-version: "2026-06-30"
+
+servers:
+  - url: https://api.atlas.example.com/v1
+    description: Production
+  - url: https://api.staging.atlas.example.com/v1
+    description: Staging
+  - url: http://localhost:3000/v1
+    description: Local development
+
+tags:
+  - name: Workspaces
+    description: Billing and policy root entities
+  - name: Organizations
+    description: RLS tenant boundary entities
+  - name: Teams
+    description: Functional groups within an organization
+  - name: Members
+    description: Organization membership management
+  - name: Invitations
+    description: Organization and team invitation lifecycle
+  - name: Users
+    description: Current authenticated user
+  - name: Sessions
+    description: Active login session management
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+paths:
+  /workspaces:
+    get:
+      operationId: listWorkspaces
+      summary: List workspaces
+      description: Returns workspaces the authenticated user belongs to or owns.
+      tags: [Workspaces]
+      security:
+        - bearerAuth: [profile]
+        - apiKeyAuth: [platform:read]
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/AtlasVersion'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Workspace collection
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+            RateLimit-Limit:
+              $ref: '#/components/headers/RateLimit-Limit'
+            RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimit-Remaining'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceListResponse'
+              example:
+                data:
+                  - id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    object: workspace
+                    slug: acme-hq
+                    name: Acme HQ
+                    is_active: true
+                    created_at: "2026-06-30T12:00:00Z"
+                pagination:
+                  has_more: false
+                  next_cursor: null
+                  prev_cursor: null
+                  limit: 50
+                meta:
+                  request_id: "550e8400-e29b-41d4-a716-446655440000"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+      x-atlas-rate-limit-tier: authenticated
+      x-atlas-required-scopes: [profile, platform:read]
+
+    post:
+      operationId: createWorkspace
+      summary: Create workspace
+      description: |
+        Creates a new workspace with the caller as owner. Optionally provisions
+        an initial organization in the same request.
+      tags: [Workspaces]
+      security:
+        - bearerAuth: [platform:write]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/AtlasVersion'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkspaceRequest'
+      responses:
+        '201':
+          description: Workspace created
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-atlas-rate-limit-tier: authenticated
+      x-atlas-required-scopes: [platform:write]
+
+  /workspaces/{workspace_id}:
+    get:
+      operationId: getWorkspace
+      summary: Get workspace
+      tags: [Workspaces]
+      security:
+        - bearerAuth: [platform:read]
+        - apiKeyAuth: [platform:read]
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/AtlasVersion'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Workspace details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-atlas-required-scopes: [platform:read]
+
+    patch:
+      operationId: updateWorkspace
+      summary: Update workspace
+      tags: [Workspaces]
+      security:
+        - bearerAuth: [platform:write]
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/AtlasVersion'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkspaceRequest'
+      responses:
+        '200':
+          description: Workspace updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+      x-atlas-required-scopes: [platform:write]
+
+  /organizations:
+    get:
+      operationId: listOrganizations
+      summary: List organizations
+      description: Lists organizations the caller has active membership in.
+      tags: [Organizations]
+      security:
+        - bearerAuth: [platform:read]
+        - apiKeyAuth: [platform:read]
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Sort'
+        - name: workspace_id
+          in: query
+          description: Filter by parent workspace
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/OrganizationStatus'
+        - $ref: '#/components/parameters/AtlasVersion'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Organization collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-atlas-required-scopes: [platform:read]
+
+    post:
+      operationId: createOrganization
+      summary: Create organization
+      description: Provisions a new organization within a workspace. Caller becomes owner.
+      tags: [Organizations]
+      security:
+        - bearerAuth: [platform:write]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/AtlasVersion'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationRequest'
+      responses:
+        '201':
+          description: Organization created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+      x-atlas-required-scopes: [platform:write]
+
+  /organizations/{organization_id}:
+    get:
+      operationId: getOrganization
+      summary: Get organization
+      tags: [Organizations]
+      security:
+        - bearerAuth: [platform:read]
+        - apiKeyAuth: [platform:read]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/AtlasVersion'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Organization details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-atlas-required-scopes: [platform:read]
+
+    patch:
+      operationId: updateOrganization
+      summary: Update organization
+      tags: [Organizations]
+      security:
+        - bearerAuth: [platform:write]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/AtlasVersion'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganizationRequest'
+      responses:
+        '200':
+          description: Organization updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+      x-atlas-required-scopes: [platform:write]
+
+  /organizations/{organization_id}/teams:
+    get:
+      operationId: listTeams
+      summary: List teams
+      tags: [Teams]
+      security:
+        - bearerAuth: [platform:read]
+        - apiKeyAuth: [platform:read]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Sort'
+        - name: parent_team_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/AtlasVersion'
+      responses:
+        '200':
+          description: Team collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-atlas-required-scopes: [platform:read, admin:teams:read]
+
+    post:
+      operationId: createTeam
+      summary: Create team
+      tags: [Teams]
+      security:
+        - bearerAuth: [admin:teams:manage]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/AtlasVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTeamRequest'
+      responses:
+        '201':
+          description: Team created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+      x-atlas-required-scopes: [admin:teams:manage]
+
+  /organizations/{organization_id}/teams/{team_id}:
+    get:
+      operationId: getTeam
+      summary: Get team
+      tags: [Teams]
+      security:
+        - bearerAuth: [platform:read]
+        - apiKeyAuth: [platform:read]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/TeamId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/AtlasVersion'
+      responses:
+        '200':
+          description: Team details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-atlas-required-scopes: [platform:read]
+
+    patch:
+      operationId: updateTeam
+      summary: Update team
+      tags: [Teams]
+      security:
+        - bearerAuth: [admin:teams:manage]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/TeamId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/AtlasVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTeamRequest'
+      responses:
+        '200':
+          description: Team updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+      x-atlas-required-scopes: [admin:teams:manage]
+
+    delete:
+      operationId: deleteTeam
+      summary: Delete team
+      description: Soft-deletes a team. Default teams cannot be deleted.
+      tags: [Teams]
+      security:
+        - bearerAuth: [admin:teams:manage]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/TeamId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/AtlasVersion'
+      responses:
+        '204':
+          description: Team deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-atlas-required-scopes: [admin:teams:manage]
+
+  /organizations/{organization_id}/members:
+    get:
+      operationId: listMembers
+      summary: List organization members
+      tags: [Members]
+      security:
+        - bearerAuth: [platform:read]
+        - apiKeyAuth: [platform:read]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/MembershipStatus'
+        - name: team_id
+          in: query
+          description: Filter members belonging to a team
+          schema:
+            type: string
+            format: uuid
+        - name: include
+          in: query
+          description: Comma-separated expansions
+          schema:
+            type: string
+            enum: [user, total_count]
+        - $ref: '#/components/parameters/AtlasVersion'
+      responses:
+        '200':
+          description: Member collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-atlas-required-scopes: [platform:read, admin:members:read]
+
+    post:
+      operationId: addMember
+      summary: Add member directly
+      description: |
+        Adds an existing Atlas user to the organization. For inviting new users
+        by email, use the invitations endpoint instead.
+      tags: [Members]
+      security:
+        - bearerAuth: [admin:members:manage]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/AtlasVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddMemberRequest'
+      responses:
+        '201':
+          description: Member added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+      x-atlas-required-scopes: [admin:members:manage]
+
+  /organizations/{organization_id}/members/{member_id}:
+    get:
+      operationId: getMember
+      summary: Get member
+      tags: [Members]
+      security:
+        - bearerAuth: [platform:read]
+        - apiKeyAuth: [platform:read]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/MemberId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - name: include
+          in: query
+          schema:
+            type: string
+            enum: [user]
+        - $ref: '#/components/parameters/AtlasVersion'
+      responses:
+        '200':
+          description: Member details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-atlas-required-scopes: [platform:read]
+
+    patch:
+      operationId: updateMember
+      summary: Update member
+      tags: [Members]
+      security:
+        - bearerAuth: [admin:members:manage]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/MemberId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/AtlasVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemberRequest'
+      responses:
+        '200':
+          description: Member updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+      x-atlas-required-scopes: [admin:members:manage]
+
+    delete:
+      operationId: removeMember
+      summary: Remove member
+      description: Soft-removes a member. Cannot remove the sole organization owner.
+      tags: [Members]
+      security:
+        - bearerAuth: [admin:members:manage]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/MemberId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/AtlasVersion'
+      responses:
+        '204':
+          description: Member removed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-atlas-required-scopes: [admin:members:manage]
+
+  /organizations/{organization_id}/invitations:
+    get:
+      operationId: listInvitations
+      summary: List invitations
+      tags: [Invitations]
+      security:
+        - bearerAuth: [admin:members:invite]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/InvitationStatus'
+        - $ref: '#/components/parameters/AtlasVersion'
+      responses:
+        '200':
+          description: Invitation collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-atlas-required-scopes: [admin:members:invite]
+
+    post:
+      operationId: createInvitation
+      summary: Create invitation
+      description: Sends an email invitation to join the organization and optional team.
+      tags: [Invitations]
+      security:
+        - bearerAuth: [admin:members:invite]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/AtlasVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvitationRequest'
+      responses:
+        '201':
+          description: Invitation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+      x-atlas-required-scopes: [admin:members:invite]
+
+  /organizations/{organization_id}/invitations/{invitation_id}:
+    get:
+      operationId: getInvitation
+      summary: Get invitation
+      tags: [Invitations]
+      security:
+        - bearerAuth: [admin:members:invite]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/InvitationId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/AtlasVersion'
+      responses:
+        '200':
+          description: Invitation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-atlas-required-scopes: [admin:members:invite]
+
+    delete:
+      operationId: revokeInvitation
+      summary: Revoke invitation
+      tags: [Invitations]
+      security:
+        - bearerAuth: [admin:members:invite]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/InvitationId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/AtlasVersion'
+      responses:
+        '200':
+          description: Invitation revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-atlas-required-scopes: [admin:members:invite]
+
+  /organizations/{organization_id}/invitations/{invitation_id}/resend:
+    post:
+      operationId: resendInvitation
+      summary: Resend invitation email
+      tags: [Invitations]
+      security:
+        - bearerAuth: [admin:members:invite]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/InvitationId'
+        - $ref: '#/components/parameters/AtlasOrganizationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/AtlasVersion'
+      responses:
+        '200':
+          description: Invitation resent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-atlas-required-scopes: [admin:members:invite]
+
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      summary: Get current user
+      description: Returns the authenticated user's profile and organization memberships.
+      tags: [Users]
+      security:
+        - bearerAuth: [profile]
+        - apiKeyAuth: [profile]
+      parameters:
+        - name: include
+          in: query
+          description: Comma-separated expansions
+          schema:
+            type: string
+            example: memberships,sessions_count
+        - $ref: '#/components/parameters/AtlasVersion'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+              example:
+                data:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  object: user
+                  email: alice@acme.example.com
+                  email_verified: true
+                  display_name: Alice Chen
+                  status: ACTIVE
+                  type: HUMAN
+                  locale: en-US
+                  timezone: America/Los_Angeles
+                  created_at: "2026-01-15T08:00:00Z"
+                meta:
+                  request_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      x-atlas-required-scopes: [profile]
+
+    patch:
+      operationId: updateCurrentUser
+      summary: Update current user
+      tags: [Users]
+      security:
+        - bearerAuth: [profile]
+      parameters:
+        - $ref: '#/components/parameters/AtlasVersion'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+      x-atlas-required-scopes: [profile]
+
+  /users/me/sessions:
+    get:
+      operationId: listCurrentUserSessions
+      summary: List active sessions
+      description: Returns active login sessions for the current user across all devices.
+      tags: [Sessions]
+      security:
+        - bearerAuth: [profile]
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/AtlasVersion'
+      responses:
+        '200':
+          description: Session collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      x-atlas-required-scopes: [profile]
+
+  /users/me/sessions/{session_id}:
+    delete:
+      operationId: revokeSession
+      summary: Revoke session
+      description: Revokes a specific session (remote logout). Cannot revoke current session via this endpoint; use auth logout.
+      tags: [Sessions]
+      security:
+        - bearerAuth: [profile]
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/AtlasVersion'
+      responses:
+        '204':
+          description: Session revoked
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-atlas-required-scopes: [profile]
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        RS256 JWT access token issued by Atlas Identity Service.
+        Lifetime: 15 minutes. Claims include `sub`, `tid`, `sid`, `scope`, `mfa`.
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        API key authentication. Format: `Authorization: Atlas-Key atl_live_{prefix}`.
+        Keys are organization-scoped with registered scopes.
+
+  parameters:
+    AtlasVersion:
+      name: Atlas-Version
+      in: header
+      description: Date-based API version (Stripe-style)
+      schema:
+        type: string
+        example: "2026-06-30"
+        default: "2026-06-30"
+    AtlasOrganizationId:
+      name: Atlas-Organization-Id
+      in: header
+      description: Explicit organization (tenant) context for org-scoped operations
+      schema:
+        type: string
+        format: uuid
+    RequestId:
+      name: X-Request-Id
+      in: header
+      description: Client-supplied correlation ID
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: UUID v4 for safe retries on POST mutations
+      schema:
+        type: string
+        format: uuid
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque signed pagination cursor
+      schema:
+        type: string
+    Sort:
+      name: sort
+      in: query
+      description: Sort field(s). Prefix with `-` for descending.
+      schema:
+        type: string
+        default: created_at
+        example: "-created_at"
+    WorkspaceId:
+      name: workspace_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    OrganizationId:
+      name: organization_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TeamId:
+      name: team_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    MemberId:
+      name: member_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    InvitationId:
+      name: invitation_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SessionId:
+      name: session_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  headers:
+    X-Request-Id:
+      description: Correlation ID
+      schema:
+        type: string
+        format: uuid
+    RateLimit-Limit:
+      description: Request limit per window
+      schema:
+        type: integer
+    RateLimit-Remaining:
+      description: Remaining requests in window
+      schema:
+        type: integer
+    RateLimit-Reset:
+      description: Unix timestamp when window resets
+      schema:
+        type: integer
+
+  responses:
+    BadRequest:
+      description: Malformed request
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: https://api.atlas.example.com/errors/bad-request
+            title: Bad Request
+            status: 400
+            detail: Invalid cursor token.
+            code: platform_bad_request
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: https://api.atlas.example.com/errors/unauthorized
+            title: Unauthorized
+            status: 401
+            detail: Access token expired.
+            code: auth_token_expired
+    Forbidden:
+      description: Authenticated but not authorized
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: https://api.atlas.example.com/errors/forbidden
+            title: Forbidden
+            status: 403
+            detail: Insufficient scope for this operation.
+            code: auth_insufficient_scope
+    NotFound:
+      description: Resource not found or not visible
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: https://api.atlas.example.com/errors/not-found
+            title: Not Found
+            status: 404
+            detail: Organization not found.
+            code: platform_organization_not_found
+    Conflict:
+      description: Version conflict or duplicate
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: https://api.atlas.example.com/errors/conflict
+            title: Conflict
+            status: 409
+            detail: Optimistic lock version mismatch.
+            code: platform_version_conflict
+    ValidationFailed:
+      description: Semantic validation errors
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: https://api.atlas.example.com/errors/validation-failed
+            title: Validation Failed
+            status: 422
+            detail: One or more fields failed validation.
+            code: platform_validation_failed
+            errors:
+              - field: slug
+                code: invalid_format
+                message: Slug must match pattern ^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+        RateLimit-Limit:
+          $ref: '#/components/headers/RateLimit-Limit'
+        RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimit-Remaining'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+          example: https://api.atlas.example.com/errors/validation-failed
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          description: Machine-readable error code ({domain}_{entity}_{reason})
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+    FieldError:
+      type: object
+      required: [field, code, message]
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+
+    Meta:
+      type: object
+      required: [request_id]
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        total_count:
+          type: integer
+          nullable: true
+          description: Present when ?include=total_count
+
+    Pagination:
+      type: object
+      required: [has_more, limit]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+        prev_cursor:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+
+    Money:
+      type: object
+      required: [amount_cents, currency_code]
+      properties:
+        amount_cents:
+          type: integer
+          format: int64
+          description: Amount in smallest currency unit (integer cents)
+          example: 1999
+        currency_code:
+          type: string
+          minLength: 3
+          maxLength: 3
+          pattern: '^[A-Z]{3}$'
+          example: USD
+
+    OrganizationStatus:
+      type: string
+      enum: [PROVISIONING, ACTIVE, SUSPENDED, ARCHIVED]
+
+    IsolationTier:
+      type: string
+      enum: [SHARED_RLS, DEDICATED_SCHEMA, DEDICATED_CLUSTER]
+
+    MembershipStatus:
+      type: string
+      enum: [ACTIVE, SUSPENDED, REMOVED]
+
+    TeamMemberRole:
+      type: string
+      enum: [LEAD, MEMBER]
+
+    InvitationStatus:
+      type: string
+      enum: [PENDING, ACCEPTED, DECLINED, EXPIRED, REVOKED]
+
+    UserStatus:
+      type: string
+      enum: [PENDING_VERIFICATION, ACTIVE, SUSPENDED, DEACTIVATED]
+
+    UserType:
+      type: string
+      enum: [HUMAN, SERVICE_ACCOUNT, AGENT]
+
+    Workspace:
+      type: object
+      required: [id, object, slug, name, owner_user_id, is_active, created_at, updated_at, version]
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: workspace
+        slug:
+          type: string
+          pattern: '^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$'
+        name:
+          type: string
+          maxLength: 255
+        display_name:
+          type: string
+          nullable: true
+        owner_user_id:
+          type: string
+          format: uuid
+        plan_id:
+          type: string
+          format: uuid
+          nullable: true
+        settings:
+          type: object
+          additionalProperties: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        version:
+          type: integer
+
+    Organization:
+      type: object
+      required: [id, object, workspace_id, slug, name, status, isolation_tier, timezone, locale, currency_code, data_region, created_at, updated_at, version]
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: organization
+        workspace_id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+          pattern: '^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$'
+        name:
+          type: string
+        display_name:
+          type: string
+          nullable: true
+        legal_name:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/OrganizationStatus'
+        isolation_tier:
+          $ref: '#/components/schemas/IsolationTier'
+        timezone:
+          type: string
+          example: America/New_York
+        locale:
+          type: string
+          example: en-US
+        currency_code:
+          type: string
+          minLength: 3
+          maxLength: 3
+        data_region:
+          type: string
+          example: us-east-1
+        settings:
+          type: object
+          additionalProperties: true
+        provisioned_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        version:
+          type: integer
+
+    Team:
+      type: object
+      required: [id, object, organization_id, slug, name, is_default, created_at, updated_at, version]
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: team
+        organization_id:
+          type: string
+          format: uuid
+        parent_team_id:
+          type: string
+          format: uuid
+          nullable: true
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        is_default:
+          type: boolean
+        settings:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        version:
+          type: integer
+
+    UserSummary:
+      type: object
+      required: [id, email, display_name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+          nullable: true
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+
+    Member:
+      type: object
+      required: [id, object, organization_id, user_id, status, is_owner, is_billing_admin, joined_at, created_at, updated_at, version]
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: member
+        organization_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        user:
+          $ref: '#/components/schemas/UserSummary'
+        status:
+          $ref: '#/components/schemas/MembershipStatus'
+        title:
+          type: string
+          nullable: true
+        department:
+          type: string
+          nullable: true
+        is_owner:
+          type: boolean
+        is_billing_admin:
+          type: boolean
+        joined_at:
+          type: string
+          format: date-time
+        last_active_at:
+          type: string
+          format: date-time
+          nullable: true
+        role_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Assigned RBAC role (see authorization module)
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        version:
+          type: integer
+
+    Invitation:
+      type: object
+      required: [id, object, organization_id, email, status, invited_by_id, expires_at, created_at, updated_at, version]
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: invitation
+        organization_id:
+          type: string
+          format: uuid
+        team_id:
+          type: string
+          format: uuid
+          nullable: true
+        email:
+          type: string
+          format: email
+        invited_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        invited_by_id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/InvitationStatus'
+        role_id:
+          type: string
+          format: uuid
+          nullable: true
+        message:
+          type: string
+          nullable: true
+          maxLength: 1000
+        expires_at:
+          type: string
+          format: date-time
+        accepted_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        version:
+          type: integer
+
+    User:
+      type: object
+      required: [id, object, email, email_verified, status, type, locale, timezone, created_at, updated_at, version]
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: user
+        email:
+          type: string
+          format: email
+        email_verified:
+          type: boolean
+        display_name:
+          type: string
+          nullable: true
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        type:
+          $ref: '#/components/schemas/UserType'
+        locale:
+          type: string
+        timezone:
+          type: string
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+        memberships:
+          type: array
+          items:
+            type: object
+            properties:
+              organization_id:
+                type: string
+                format: uuid
+              organization_name:
+                type: string
+              role:
+                type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        version:
+          type: integer
+
+    Session:
+      type: object
+      required: [id, object, user_id, mfa_verified, expires_at, last_activity_at, created_at, is_current]
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          const: session
+        user_id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+          nullable: true
+        workspace_id:
+          type: string
+          format: uuid
+          nullable: true
+        ip_address:
+          type: string
+          nullable: true
+        user_agent:
+          type: string
+          nullable: true
+        device_name:
+          type: string
+          nullable: true
+          description: Derived from user agent for display
+        mfa_verified:
+          type: boolean
+        is_remembered:
+          type: boolean
+        is_current:
+          type: boolean
+          description: True if this is the session making the request
+        expires_at:
+          type: string
+          format: date-time
+        last_activity_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    CreateWorkspaceRequest:
+      type: object
+      required: [slug, name]
+      properties:
+        slug:
+          type: string
+          pattern: '^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$'
+        name:
+          type: string
+          maxLength: 255
+        display_name:
+          type: string
+        initial_organization:
+          $ref: '#/components/schemas/CreateOrganizationRequest'
+
+    UpdateWorkspaceRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+        name:
+          type: string
+        display_name:
+          type: string
+          nullable: true
+        settings:
+          type: object
+          additionalProperties: true
+
+    CreateOrganizationRequest:
+      type: object
+      required: [workspace_id, slug, name]
+      properties:
+        workspace_id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        display_name:
+          type: string
+        legal_name:
+          type: string
+        timezone:
+          type: string
+          default: UTC
+        locale:
+          type: string
+          default: en-US
+        currency_code:
+          type: string
+          default: USD
+        data_region:
+          type: string
+          default: us-east-1
+
+    UpdateOrganizationRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+        name:
+          type: string
+        display_name:
+          type: string
+          nullable: true
+        legal_name:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+        locale:
+          type: string
+        currency_code:
+          type: string
+        settings:
+          type: object
+          additionalProperties: true
+
+    CreateTeamRequest:
+      type: object
+      required: [slug, name]
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        parent_team_id:
+          type: string
+          format: uuid
+
+    UpdateTeamRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        parent_team_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    AddMemberRequest:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        role_id:
+          type: string
+          format: uuid
+        team_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        title:
+          type: string
+        department:
+          type: string
+        is_billing_admin:
+          type: boolean
+          default: false
+
+    UpdateMemberRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+        status:
+          $ref: '#/components/schemas/MembershipStatus'
+        title:
+          type: string
+          nullable: true
+        department:
+          type: string
+          nullable: true
+        is_owner:
+          type: boolean
+        is_billing_admin:
+          type: boolean
+        role_id:
+          type: string
+          format: uuid
+
+    CreateInvitationRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        team_id:
+          type: string
+          format: uuid
+        role_id:
+          type: string
+          format: uuid
+        message:
+          type: string
+          maxLength: 1000
+
+    UpdateUserRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+        display_name:
+          type: string
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        locale:
+          type: string
+        timezone:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+
+    WorkspaceResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/Workspace'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    WorkspaceListResponse:
+      type: object
+      required: [data, pagination, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Workspace'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    OrganizationResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/Organization'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    OrganizationListResponse:
+      type: object
+      required: [data, pagination, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Organization'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    TeamResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/Team'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    TeamListResponse:
+      type: object
+      required: [data, pagination, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Team'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    MemberResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/Member'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    MemberListResponse:
+      type: object
+      required: [data, pagination, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Member'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    InvitationResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/Invitation'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    InvitationListResponse:
+      type: object
+      required: [data, pagination, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invitation'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    UserResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/User'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    SessionListResponse:
+      type: object
+      required: [data, pagination, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Session'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/Meta'

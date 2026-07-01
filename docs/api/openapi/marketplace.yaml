@@ -1,0 +1,773 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS Marketplace API
+  version: 1.0.0
+  description: |
+    REST API for the Marketplace bounded context (schema: `marketplace`).
+    Resources: Apps catalog, Installations, Developer apps.
+servers:
+  - url: https://api.atlas.example.com
+security:
+  - bearerAuth: []
+tags:
+  - name: Catalog
+  - name: Installations
+  - name: DeveloperApps
+paths:
+  /v1/marketplace/apps:
+    get:
+      operationId: listMarketplaceApps
+      tags: [Catalog]
+      summary: List published marketplace apps (global catalog)
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: pricingModel
+          in: query
+          schema:
+            $ref: '#/components/schemas/MarketplacePricingModel'
+        - name: isFeatured
+          in: query
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated app catalog
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceAppListResponse'
+  /v1/marketplace/apps/{appSlug}:
+    get:
+      operationId: getMarketplaceApp
+      tags: [Catalog]
+      summary: Get marketplace app by slug
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/appSlug'
+        - name: includeVersions
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: App details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceAppDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/organizations/{organizationId}/installations:
+    get:
+      operationId: listInstallations
+      tags: [Installations]
+      summary: List app installations for organization
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AppInstallationStatus'
+        - name: marketplaceAppId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated installation list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppInstallationListResponse'
+    post:
+      operationId: installApp
+      tags: [Installations]
+      summary: Install a marketplace app
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppInstallationCreate'
+      responses:
+        '201':
+          description: Installation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppInstallation'
+  /v1/organizations/{organizationId}/installations/{installationId}:
+    get:
+      operationId: getInstallation
+      tags: [Installations]
+      summary: Get app installation by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/installationId'
+      responses:
+        '200':
+          description: Installation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppInstallationDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateInstallation
+      tags: [Installations]
+      summary: Update installation config or status
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/installationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppInstallationUpdate'
+      responses:
+        '200':
+          description: Installation updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppInstallation'
+  /v1/organizations/{organizationId}/installations/{installationId}/uninstall:
+    post:
+      operationId: uninstallApp
+      tags: [Installations]
+      summary: Uninstall a marketplace app
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/installationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: App uninstalled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppInstallation'
+  /v1/organizations/{organizationId}/installations/{installationId}/health-check:
+    post:
+      operationId: checkInstallationHealth
+      tags: [Installations]
+      summary: Trigger installation health check
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/installationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: Health check result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppHealthCheckResult'
+  /v1/organizations/{organizationId}/developer/apps:
+    get:
+      operationId: listDeveloperApps
+      tags: [DeveloperApps]
+      summary: List apps owned by developer account
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/MarketplaceAppStatus'
+      responses:
+        '200':
+          description: Paginated developer app list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceAppListResponse'
+    post:
+      operationId: createDeveloperApp
+      tags: [DeveloperApps]
+      summary: Register a new developer app
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeveloperAppCreate'
+      responses:
+        '201':
+          description: Developer app created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceApp'
+  /v1/organizations/{organizationId}/developer/apps/{appId}:
+    get:
+      operationId: getDeveloperApp
+      tags: [DeveloperApps]
+      summary: Get developer app by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/appId'
+      responses:
+        '200':
+          description: Developer app details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceAppDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateDeveloperApp
+      tags: [DeveloperApps]
+      summary: Update developer app metadata
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/appId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeveloperAppUpdate'
+      responses:
+        '200':
+          description: Developer app updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceApp'
+  /v1/organizations/{organizationId}/developer/apps/{appId}/versions:
+    post:
+      operationId: submitAppVersion
+      tags: [DeveloperApps]
+      summary: Submit a new app version for review
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/appId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppVersionCreate'
+      responses:
+        '201':
+          description: App version submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppVersion'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    organizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    appSlug:
+      name: appSlug
+      in: path
+      required: true
+      schema:
+        type: string
+    appId:
+      name: appId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    installationId:
+      name: installationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ifMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+    Pagination:
+      type: object
+      required: [has_more, limit]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+    MarketplaceAppStatus:
+      type: string
+      enum: [draft, in_review, published, deprecated, suspended]
+    MarketplacePricingModel:
+      type: string
+      enum: [free, freemium, paid, usage_based, included]
+    AppVersionStatus:
+      type: string
+      enum: [draft, submitted, in_review, approved, rejected, deprecated]
+    AppInstallationStatus:
+      type: string
+      enum: [pending, active, paused, error, uninstalled]
+    AppHealthStatus:
+      type: string
+      enum: [healthy, degraded, unhealthy, unknown]
+    AppPermissionRiskLevel:
+      type: string
+      enum: [low, medium, high, critical]
+    MarketplaceApp:
+      type: object
+      required: [id, slug, name, status, pricingModel]
+      properties:
+        id:
+          type: string
+          format: uuid
+        developerAccountId:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        tagline:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        longDescription:
+          type: string
+          nullable: true
+        logoUrl:
+          type: string
+          format: uri
+          nullable: true
+        bannerUrl:
+          type: string
+          format: uri
+          nullable: true
+        documentationUrl:
+          type: string
+          format: uri
+          nullable: true
+        categories:
+          type: array
+          items:
+            type: string
+        tags:
+          type: array
+          items:
+            type: string
+        pricingModel:
+          $ref: '#/components/schemas/MarketplacePricingModel'
+        basePriceCents:
+          type: string
+          nullable: true
+        currency:
+          type: string
+          nullable: true
+        installCount:
+          type: string
+        averageRating:
+          type: string
+          nullable: true
+        reviewCount:
+          type: integer
+        isFirstParty:
+          type: boolean
+        isFeatured:
+          type: boolean
+        status:
+          $ref: '#/components/schemas/MarketplaceAppStatus'
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    AppVersion:
+      type: object
+      required: [id, marketplaceAppId, version, manifest, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        marketplaceAppId:
+          type: string
+          format: uuid
+        version:
+          type: string
+        versionMajor:
+          type: integer
+        versionMinor:
+          type: integer
+        versionPatch:
+          type: integer
+        changelog:
+          type: string
+          nullable: true
+        manifest:
+          type: object
+          additionalProperties: true
+        oauthRedirectUris:
+          type: array
+          items:
+            type: string
+            format: uri
+        webhookEventTypes:
+          type: array
+          items:
+            type: string
+        status:
+          $ref: '#/components/schemas/AppVersionStatus'
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+    AppPermission:
+      type: object
+      required: [permissionKey, scope, resource, action, description]
+      properties:
+        permissionKey:
+          type: string
+        scope:
+          type: string
+        resource:
+          type: string
+        action:
+          type: string
+        description:
+          type: string
+        isRequired:
+          type: boolean
+        isSensitive:
+          type: boolean
+        riskLevel:
+          $ref: '#/components/schemas/AppPermissionRiskLevel'
+    MarketplaceAppDetail:
+      allOf:
+        - $ref: '#/components/schemas/MarketplaceApp'
+        - type: object
+          properties:
+            versions:
+              type: array
+              items:
+                $ref: '#/components/schemas/AppVersion'
+            permissions:
+              type: array
+              items:
+                $ref: '#/components/schemas/AppPermission'
+    MarketplaceAppListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarketplaceApp'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    AppInstallation:
+      type: object
+      required: [id, organizationId, marketplaceAppId, appVersionId, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        marketplaceAppId:
+          type: string
+          format: uuid
+        appVersionId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/AppInstallationStatus'
+        config:
+          type: object
+          additionalProperties: true
+        grantedScopes:
+          type: array
+          items:
+            type: string
+        oauthClientId:
+          type: string
+          format: uuid
+          nullable: true
+        installedBy:
+          type: string
+          format: uuid
+        installedAt:
+          type: string
+          format: date-time
+        uninstalledAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastHealthCheckAt:
+          type: string
+          format: date-time
+          nullable: true
+        healthStatus:
+          $ref: '#/components/schemas/AppHealthStatus'
+        errorMessage:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    AppInstallationDetail:
+      allOf:
+        - $ref: '#/components/schemas/AppInstallation'
+        - type: object
+          properties:
+            app:
+              $ref: '#/components/schemas/MarketplaceApp'
+            appVersion:
+              $ref: '#/components/schemas/AppVersion'
+    AppInstallationCreate:
+      type: object
+      required: [marketplaceAppId, appVersionId, grantedScopes]
+      properties:
+        marketplaceAppId:
+          type: string
+          format: uuid
+        appVersionId:
+          type: string
+          format: uuid
+        grantedScopes:
+          type: array
+          items:
+            type: string
+        config:
+          type: object
+          additionalProperties: true
+    AppInstallationUpdate:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/AppInstallationStatus'
+        config:
+          type: object
+          additionalProperties: true
+        grantedScopes:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    AppInstallationListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AppInstallation'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    AppHealthCheckResult:
+      type: object
+      required: [healthStatus, checkedAt]
+      properties:
+        healthStatus:
+          $ref: '#/components/schemas/AppHealthStatus'
+        checkedAt:
+          type: string
+          format: date-time
+        errorMessage:
+          type: string
+          nullable: true
+    DeveloperAppCreate:
+      type: object
+      required: [slug, name]
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        tagline:
+          type: string
+        description:
+          type: string
+        categories:
+          type: array
+          items:
+            type: string
+        pricingModel:
+          $ref: '#/components/schemas/MarketplacePricingModel'
+        basePriceCents:
+          type: string
+        documentationUrl:
+          type: string
+          format: uri
+        privacyPolicyUrl:
+          type: string
+          format: uri
+        termsUrl:
+          type: string
+          format: uri
+    DeveloperAppUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        tagline:
+          type: string
+        description:
+          type: string
+        longDescription:
+          type: string
+        logoUrl:
+          type: string
+          format: uri
+        bannerUrl:
+          type: string
+          format: uri
+        categories:
+          type: array
+          items:
+            type: string
+        tags:
+          type: array
+          items:
+            type: string
+        documentationUrl:
+          type: string
+          format: uri
+    AppVersionCreate:
+      type: object
+      required: [version, manifest]
+      properties:
+        version:
+          type: string
+        changelog:
+          type: string
+        manifest:
+          type: object
+          additionalProperties: true
+        oauthRedirectUris:
+          type: array
+          items:
+            type: string
+            format: uri
+        webhookEventTypes:
+          type: array
+          items:
+            type: string
+        minAtlasVersion:
+          type: string

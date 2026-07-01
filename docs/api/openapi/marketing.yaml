@@ -1,0 +1,1301 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS Marketing API
+  version: 1.0.0
+  description: |
+    REST API for the Marketing bounded context (schema: `marketing`).
+    Resources: Campaigns, Segments, EmailTemplates, LandingPages, SubscriberLists.
+  contact:
+    name: Atlas API Team
+    url: https://api.atlas.example.com
+servers:
+  - url: https://api.atlas.example.com
+    description: Production
+security:
+  - bearerAuth: []
+tags:
+  - name: Campaigns
+  - name: Segments
+  - name: EmailTemplates
+  - name: LandingPages
+  - name: SubscriberLists
+paths:
+  /v1/organizations/{organizationId}/campaigns:
+    get:
+      operationId: listCampaigns
+      tags: [Campaigns]
+      summary: List campaigns
+      x-atlas-latency-tier: standard
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/CampaignStatus'
+        - name: channel
+          in: query
+          schema:
+            $ref: '#/components/schemas/CampaignChannel'
+      responses:
+        '200':
+          description: Paginated campaign list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createCampaign
+      tags: [Campaigns]
+      summary: Create a campaign
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignCreate'
+      responses:
+        '201':
+          description: Campaign created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+  /v1/organizations/{organizationId}/campaigns/{campaignId}:
+    get:
+      operationId: getCampaign
+      tags: [Campaigns]
+      summary: Get campaign by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/campaignId'
+      responses:
+        '200':
+          description: Campaign details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateCampaign
+      tags: [Campaigns]
+      summary: Update a campaign
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/campaignId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignUpdate'
+      responses:
+        '200':
+          description: Campaign updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      operationId: deleteCampaign
+      tags: [Campaigns]
+      summary: Soft-delete a campaign
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/campaignId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '204':
+          description: Campaign deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/organizations/{organizationId}/campaigns/{campaignId}/schedule:
+    post:
+      operationId: scheduleCampaign
+      tags: [Campaigns]
+      summary: Schedule a campaign for future send
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/campaignId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scheduledAt]
+              properties:
+                scheduledAt:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Campaign scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+  /v1/organizations/{organizationId}/campaigns/{campaignId}/launch:
+    post:
+      operationId: launchCampaign
+      tags: [Campaigns]
+      summary: Launch a campaign immediately
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/campaignId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: Campaign launched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+  /v1/organizations/{organizationId}/segments:
+    get:
+      operationId: listSegments
+      tags: [Segments]
+      summary: List audience segments
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: segmentType
+          in: query
+          schema:
+            $ref: '#/components/schemas/SegmentType'
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated segment list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SegmentListResponse'
+    post:
+      operationId: createSegment
+      tags: [Segments]
+      summary: Create a segment with rules
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SegmentCreate'
+      responses:
+        '201':
+          description: Segment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Segment'
+  /v1/organizations/{organizationId}/segments/{segmentId}:
+    get:
+      operationId: getSegment
+      tags: [Segments]
+      summary: Get segment by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/segmentId'
+      responses:
+        '200':
+          description: Segment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Segment'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateSegment
+      tags: [Segments]
+      summary: Update a segment
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/segmentId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SegmentUpdate'
+      responses:
+        '200':
+          description: Segment updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Segment'
+  /v1/organizations/{organizationId}/segments/{segmentId}/compute:
+    post:
+      operationId: computeSegment
+      tags: [Segments]
+      summary: Trigger segment membership recomputation
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/segmentId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '202':
+          description: Computation job accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [queued, running]
+  /v1/organizations/{organizationId}/email-templates:
+    get:
+      operationId: listEmailTemplates
+      tags: [EmailTemplates]
+      summary: List email templates
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated email template list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailTemplateListResponse'
+    post:
+      operationId: createEmailTemplate
+      tags: [EmailTemplates]
+      summary: Create an email template
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailTemplateCreate'
+      responses:
+        '201':
+          description: Email template created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailTemplate'
+  /v1/organizations/{organizationId}/email-templates/{emailTemplateId}:
+    get:
+      operationId: getEmailTemplate
+      tags: [EmailTemplates]
+      summary: Get email template by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/emailTemplateId'
+      responses:
+        '200':
+          description: Email template details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailTemplate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateEmailTemplate
+      tags: [EmailTemplates]
+      summary: Update an email template
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/emailTemplateId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailTemplateUpdate'
+      responses:
+        '200':
+          description: Email template updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailTemplate'
+  /v1/organizations/{organizationId}/landing-pages:
+    get:
+      operationId: listLandingPages
+      tags: [LandingPages]
+      summary: List landing pages
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/LandingPageStatus'
+      responses:
+        '200':
+          description: Paginated landing page list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LandingPageListResponse'
+    post:
+      operationId: createLandingPage
+      tags: [LandingPages]
+      summary: Create a landing page
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LandingPageCreate'
+      responses:
+        '201':
+          description: Landing page created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LandingPage'
+  /v1/organizations/{organizationId}/landing-pages/{landingPageId}:
+    get:
+      operationId: getLandingPage
+      tags: [LandingPages]
+      summary: Get landing page by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/landingPageId'
+      responses:
+        '200':
+          description: Landing page details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LandingPage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateLandingPage
+      tags: [LandingPages]
+      summary: Update a landing page
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/landingPageId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LandingPageUpdate'
+      responses:
+        '200':
+          description: Landing page updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LandingPage'
+  /v1/organizations/{organizationId}/landing-pages/{landingPageId}/publish:
+    post:
+      operationId: publishLandingPage
+      tags: [LandingPages]
+      summary: Publish a landing page
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/landingPageId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: Landing page published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LandingPage'
+  /v1/organizations/{organizationId}/subscriber-lists:
+    get:
+      operationId: listSubscriberLists
+      tags: [SubscriberLists]
+      summary: List subscriber lists
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: listType
+          in: query
+          schema:
+            $ref: '#/components/schemas/SubscriberListType'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/SubscriberListStatus'
+      responses:
+        '200':
+          description: Paginated subscriber list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriberListListResponse'
+    post:
+      operationId: createSubscriberList
+      tags: [SubscriberLists]
+      summary: Create a subscriber list
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriberListCreate'
+      responses:
+        '201':
+          description: Subscriber list created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriberList'
+  /v1/organizations/{organizationId}/subscriber-lists/{subscriberListId}:
+    get:
+      operationId: getSubscriberList
+      tags: [SubscriberLists]
+      summary: Get subscriber list by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/subscriberListId'
+      responses:
+        '200':
+          description: Subscriber list details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriberList'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateSubscriberList
+      tags: [SubscriberLists]
+      summary: Update a subscriber list
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/subscriberListId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriberListUpdate'
+      responses:
+        '200':
+          description: Subscriber list updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriberList'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    organizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    campaignId:
+      name: campaignId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    segmentId:
+      name: segmentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    emailTemplateId:
+      name: emailTemplateId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    landingPageId:
+      name: landingPageId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    subscriberListId:
+      name: subscriberListId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+      description: Opaque cursor for pagination
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ifMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+      description: Optimistic concurrency version
+  responses:
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Forbidden:
+      description: Forbidden
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Conflict:
+      description: Conflict
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    ValidationFailed:
+      description: Validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              code:
+                type: string
+              message:
+                type: string
+    Pagination:
+      type: object
+      required: [has_more, limit]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+        prev_cursor:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+    AuditFields:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+        updatedBy:
+          type: string
+          format: uuid
+          nullable: true
+        version:
+          type: integer
+    CampaignStatus:
+      type: string
+      enum: [draft, scheduled, active, paused, completed, cancelled]
+    CampaignChannel:
+      type: string
+      enum: [email, sms, multi_channel, social, webinar]
+    CampaignType:
+      type: string
+      enum: [one_time, drip, triggered, ab_test]
+    CampaignGoal:
+      type: string
+      enum: [awareness, engagement, lead_gen, conversion, retention, reactivation]
+    Campaign:
+      allOf:
+        - type: object
+          required: [id, organizationId, name, status, channel, campaignType]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            name:
+              type: string
+            description:
+              type: string
+              nullable: true
+            status:
+              $ref: '#/components/schemas/CampaignStatus'
+            channel:
+              $ref: '#/components/schemas/CampaignChannel'
+            campaignType:
+              $ref: '#/components/schemas/CampaignType'
+            goal:
+              $ref: '#/components/schemas/CampaignGoal'
+              nullable: true
+            segmentId:
+              type: string
+              format: uuid
+              nullable: true
+            subscriberListId:
+              type: string
+              format: uuid
+              nullable: true
+            budgetAmount:
+              type: string
+              description: Decimal string (18,4)
+              nullable: true
+            budgetCurrency:
+              type: string
+              minLength: 3
+              maxLength: 3
+              nullable: true
+            scheduledAt:
+              type: string
+              format: date-time
+              nullable: true
+            startedAt:
+              type: string
+              format: date-time
+              nullable: true
+            endedAt:
+              type: string
+              format: date-time
+              nullable: true
+            utmSource:
+              type: string
+              nullable: true
+            utmMedium:
+              type: string
+              nullable: true
+            utmCampaign:
+              type: string
+              nullable: true
+            settings:
+              type: object
+              additionalProperties: true
+            metricsSnapshot:
+              type: object
+              additionalProperties: true
+            metadata:
+              type: object
+              additionalProperties: true
+        - $ref: '#/components/schemas/AuditFields'
+    CampaignCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        channel:
+          $ref: '#/components/schemas/CampaignChannel'
+        campaignType:
+          $ref: '#/components/schemas/CampaignType'
+        goal:
+          $ref: '#/components/schemas/CampaignGoal'
+        segmentId:
+          type: string
+          format: uuid
+        subscriberListId:
+          type: string
+          format: uuid
+        budgetAmount:
+          type: string
+        budgetCurrency:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+        settings:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+    CampaignUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/CampaignStatus'
+        goal:
+          $ref: '#/components/schemas/CampaignGoal'
+        segmentId:
+          type: string
+          format: uuid
+        subscriberListId:
+          type: string
+          format: uuid
+        budgetAmount:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+        settings:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+    CampaignListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Campaign'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    SegmentType:
+      type: string
+      enum: [static, dynamic]
+    SegmentRuleOperator:
+      type: string
+      enum: [eq, neq, gt, gte, lt, lte, contains, not_contains, in, not_in, is_null, is_not_null, between]
+    LogicalConnector:
+      type: string
+      enum: [and, or]
+    SegmentRule:
+      type: object
+      required: [field, operator]
+      properties:
+        id:
+          type: string
+          format: uuid
+        ruleGroup:
+          type: integer
+          default: 0
+        ruleOrder:
+          type: integer
+          default: 0
+        field:
+          type: string
+        operator:
+          $ref: '#/components/schemas/SegmentRuleOperator'
+        value: {}
+        logicalConnector:
+          $ref: '#/components/schemas/LogicalConnector'
+    Segment:
+      allOf:
+        - type: object
+          required: [id, organizationId, name, segmentType]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            name:
+              type: string
+            description:
+              type: string
+              nullable: true
+            segmentType:
+              $ref: '#/components/schemas/SegmentType'
+            isActive:
+              type: boolean
+            memberCount:
+              type: integer
+            lastComputedAt:
+              type: string
+              format: date-time
+              nullable: true
+            refreshIntervalHours:
+              type: integer
+              nullable: true
+            rules:
+              type: array
+              items:
+                $ref: '#/components/schemas/SegmentRule'
+            settings:
+              type: object
+              additionalProperties: true
+            metadata:
+              type: object
+              additionalProperties: true
+        - $ref: '#/components/schemas/AuditFields'
+    SegmentCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        segmentType:
+          $ref: '#/components/schemas/SegmentType'
+        refreshIntervalHours:
+          type: integer
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/SegmentRule'
+        settings:
+          type: object
+          additionalProperties: true
+    SegmentUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        isActive:
+          type: boolean
+        refreshIntervalHours:
+          type: integer
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/SegmentRule'
+        settings:
+          type: object
+          additionalProperties: true
+    SegmentListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Segment'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    EmailTemplate:
+      allOf:
+        - type: object
+          required: [id, organizationId, name, subject, htmlBody, templateVersion]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            name:
+              type: string
+            description:
+              type: string
+              nullable: true
+            subject:
+              type: string
+            preheader:
+              type: string
+              nullable: true
+            htmlBody:
+              type: string
+            textBody:
+              type: string
+              nullable: true
+            templateVersion:
+              type: integer
+            category:
+              type: string
+            isActive:
+              type: boolean
+            variables:
+              type: array
+              items: {}
+            designJson:
+              type: object
+              additionalProperties: true
+            metadata:
+              type: object
+              additionalProperties: true
+        - $ref: '#/components/schemas/AuditFields'
+    EmailTemplateCreate:
+      type: object
+      required: [name, subject, htmlBody]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        subject:
+          type: string
+        preheader:
+          type: string
+        htmlBody:
+          type: string
+        textBody:
+          type: string
+        category:
+          type: string
+        variables:
+          type: array
+          items: {}
+        designJson:
+          type: object
+          additionalProperties: true
+    EmailTemplateUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        subject:
+          type: string
+        preheader:
+          type: string
+        htmlBody:
+          type: string
+        textBody:
+          type: string
+        isActive:
+          type: boolean
+        designJson:
+          type: object
+          additionalProperties: true
+    EmailTemplateListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmailTemplate'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    LandingPageStatus:
+      type: string
+      enum: [draft, published, archived]
+    LandingPage:
+      allOf:
+        - type: object
+          required: [id, organizationId, name, slug, title, status]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            name:
+              type: string
+            slug:
+              type: string
+            title:
+              type: string
+            description:
+              type: string
+              nullable: true
+            status:
+              $ref: '#/components/schemas/LandingPageStatus'
+            htmlContent:
+              type: string
+              nullable: true
+            cssContent:
+              type: string
+              nullable: true
+            designJson:
+              type: object
+              additionalProperties: true
+            formConfig:
+              type: object
+              additionalProperties: true
+            seoMeta:
+              type: object
+              additionalProperties: true
+            publishedAt:
+              type: string
+              format: date-time
+              nullable: true
+            publishedUrl:
+              type: string
+              format: uri
+              nullable: true
+            viewCount:
+              type: string
+              description: int64 as string
+            conversionCount:
+              type: string
+              description: int64 as string
+            metadata:
+              type: object
+              additionalProperties: true
+        - $ref: '#/components/schemas/AuditFields'
+    LandingPageCreate:
+      type: object
+      required: [name, slug, title]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        htmlContent:
+          type: string
+        cssContent:
+          type: string
+        designJson:
+          type: object
+          additionalProperties: true
+        formConfig:
+          type: object
+          additionalProperties: true
+        seoMeta:
+          type: object
+          additionalProperties: true
+    LandingPageUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        htmlContent:
+          type: string
+        cssContent:
+          type: string
+        designJson:
+          type: object
+          additionalProperties: true
+        formConfig:
+          type: object
+          additionalProperties: true
+        seoMeta:
+          type: object
+          additionalProperties: true
+    LandingPageListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LandingPage'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    SubscriberListType:
+      type: string
+      enum: [email, sms, push]
+    SubscriberListStatus:
+      type: string
+      enum: [active, archived]
+    SubscriberList:
+      allOf:
+        - type: object
+          required: [id, organizationId, name, listType, status]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            name:
+              type: string
+            description:
+              type: string
+              nullable: true
+            listType:
+              $ref: '#/components/schemas/SubscriberListType'
+            status:
+              $ref: '#/components/schemas/SubscriberListStatus'
+            requireConfirmation:
+              type: boolean
+            doubleOptIn:
+              type: boolean
+            subscriberCount:
+              type: integer
+            confirmedCount:
+              type: integer
+            unsubscribeCount:
+              type: integer
+            defaultFromName:
+              type: string
+              nullable: true
+            defaultFromEmail:
+              type: string
+              format: email
+              nullable: true
+            defaultReplyTo:
+              type: string
+              format: email
+              nullable: true
+            consentText:
+              type: string
+              nullable: true
+            settings:
+              type: object
+              additionalProperties: true
+            metadata:
+              type: object
+              additionalProperties: true
+        - $ref: '#/components/schemas/AuditFields'
+    SubscriberListCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        listType:
+          $ref: '#/components/schemas/SubscriberListType'
+        requireConfirmation:
+          type: boolean
+        doubleOptIn:
+          type: boolean
+        defaultFromName:
+          type: string
+        defaultFromEmail:
+          type: string
+          format: email
+        defaultReplyTo:
+          type: string
+          format: email
+        consentText:
+          type: string
+        settings:
+          type: object
+          additionalProperties: true
+    SubscriberListUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/SubscriberListStatus'
+        defaultFromName:
+          type: string
+        defaultFromEmail:
+          type: string
+          format: email
+        consentText:
+          type: string
+        settings:
+          type: object
+          additionalProperties: true
+    SubscriberListListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubscriberList'
+        pagination:
+          $ref: '#/components/schemas/Pagination'

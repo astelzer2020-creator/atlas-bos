@@ -1,0 +1,955 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS Support API
+  version: 1.0.0
+  description: |
+    REST API for the Support bounded context (schema: `service`).
+    Resources: Tickets (cases), SLAs, CannedResponses.
+servers:
+  - url: https://api.atlas.example.com
+security:
+  - bearerAuth: []
+tags:
+  - name: Tickets
+  - name: SLAs
+  - name: CannedResponses
+paths:
+  /v1/organizations/{organizationId}/tickets:
+    get:
+      operationId: listTickets
+      tags: [Tickets]
+      summary: List support tickets
+      x-atlas-latency-tier: standard
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/TicketStatus'
+        - name: priority
+          in: query
+          schema:
+            $ref: '#/components/schemas/TicketPriority'
+        - name: queueId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: assigneeId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: contactId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: slaBreached
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated ticket list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketListResponse'
+    post:
+      operationId: createTicket
+      tags: [Tickets]
+      summary: Create a support ticket
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketCreate'
+      responses:
+        '201':
+          description: Ticket created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+  /v1/organizations/{organizationId}/tickets/{ticketId}:
+    get:
+      operationId: getTicket
+      tags: [Tickets]
+      summary: Get ticket by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/ticketId'
+        - name: includeComments
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Ticket details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateTicket
+      tags: [Tickets]
+      summary: Update a ticket
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/ticketId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketUpdate'
+      responses:
+        '200':
+          description: Ticket updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+  /v1/organizations/{organizationId}/tickets/{ticketId}/assign:
+    post:
+      operationId: assignTicket
+      tags: [Tickets]
+      summary: Assign ticket to agent or queue
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/ticketId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketAssign'
+      responses:
+        '200':
+          description: Ticket assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+  /v1/organizations/{organizationId}/tickets/{ticketId}/resolve:
+    post:
+      operationId: resolveTicket
+      tags: [Tickets]
+      summary: Resolve a ticket
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/ticketId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolutionNote:
+                  type: string
+                resolutionCode:
+                  type: string
+      responses:
+        '200':
+          description: Ticket resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+  /v1/organizations/{organizationId}/tickets/{ticketId}/merge:
+    post:
+      operationId: mergeTickets
+      tags: [Tickets]
+      summary: Merge duplicate tickets into primary
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/ticketId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketMerge'
+      responses:
+        '200':
+          description: Tickets merged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+  /v1/organizations/{organizationId}/tickets/{ticketId}/comments:
+    post:
+      operationId: addTicketComment
+      tags: [Tickets]
+      summary: Add a public reply or internal note
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/ticketId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketCommentCreate'
+      responses:
+        '201':
+          description: Comment added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketComment'
+  /v1/organizations/{organizationId}/sla-policies:
+    get:
+      operationId: listSlaPolicies
+      tags: [SLAs]
+      summary: List SLA policies
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated SLA policy list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlaPolicyListResponse'
+    post:
+      operationId: createSlaPolicy
+      tags: [SLAs]
+      summary: Create an SLA policy
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SlaPolicyCreate'
+      responses:
+        '201':
+          description: SLA policy created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlaPolicy'
+  /v1/organizations/{organizationId}/sla-policies/{slaPolicyId}:
+    get:
+      operationId: getSlaPolicy
+      tags: [SLAs]
+      summary: Get SLA policy by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/slaPolicyId'
+      responses:
+        '200':
+          description: SLA policy details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlaPolicy'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateSlaPolicy
+      tags: [SLAs]
+      summary: Update an SLA policy
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/slaPolicyId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SlaPolicyUpdate'
+      responses:
+        '200':
+          description: SLA policy updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlaPolicy'
+  /v1/organizations/{organizationId}/sla-metrics:
+    get:
+      operationId: getSlaMetrics
+      tags: [SLAs]
+      summary: Get SLA dashboard metrics
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - name: queueId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: periodStart
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: periodEnd
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: SLA metrics summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlaMetricsResponse'
+  /v1/organizations/{organizationId}/canned-responses:
+    get:
+      operationId: listCannedResponses
+      tags: [CannedResponses]
+      summary: List canned responses (macros)
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: folder
+          in: query
+          schema:
+            type: string
+        - name: visibility
+          in: query
+          schema:
+            $ref: '#/components/schemas/CannedResponseVisibility'
+      responses:
+        '200':
+          description: Paginated canned response list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CannedResponseListResponse'
+    post:
+      operationId: createCannedResponse
+      tags: [CannedResponses]
+      summary: Create a canned response
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CannedResponseCreate'
+      responses:
+        '201':
+          description: Canned response created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CannedResponse'
+  /v1/organizations/{organizationId}/canned-responses/{cannedResponseId}:
+    get:
+      operationId: getCannedResponse
+      tags: [CannedResponses]
+      summary: Get canned response by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cannedResponseId'
+      responses:
+        '200':
+          description: Canned response details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CannedResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateCannedResponse
+      tags: [CannedResponses]
+      summary: Update a canned response
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cannedResponseId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CannedResponseUpdate'
+      responses:
+        '200':
+          description: Canned response updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CannedResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    organizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ticketId:
+      name: ticketId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    slaPolicyId:
+      name: slaPolicyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    cannedResponseId:
+      name: cannedResponseId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ifMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+    Pagination:
+      type: object
+      required: [has_more, limit]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+    TicketStatus:
+      type: string
+      enum: [new, open, pending, on_hold, resolved, closed]
+    TicketPriority:
+      type: string
+      enum: [low, normal, high, urgent]
+    TicketChannel:
+      type: string
+      enum: [email, chat, web_form, phone, api, portal]
+    CommentVisibility:
+      type: string
+      enum: [public, internal]
+    SlaStatus:
+      type: string
+      enum: [on_track, at_risk, breached, paused, met]
+    CannedResponseVisibility:
+      type: string
+      enum: [personal, team, organization]
+    SlaTarget:
+      type: object
+      required: [priority, firstResponseMinutes, resolutionMinutes]
+      properties:
+        priority:
+          $ref: '#/components/schemas/TicketPriority'
+        firstResponseMinutes:
+          type: integer
+        resolutionMinutes:
+          type: integer
+        businessHoursOnly:
+          type: boolean
+          default: true
+    SlaTimer:
+      type: object
+      properties:
+        firstResponseDueAt:
+          type: string
+          format: date-time
+          nullable: true
+        firstResponseAt:
+          type: string
+          format: date-time
+          nullable: true
+        resolutionDueAt:
+          type: string
+          format: date-time
+          nullable: true
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          $ref: '#/components/schemas/SlaStatus'
+        pausedAt:
+          type: string
+          format: date-time
+          nullable: true
+    Ticket:
+      type: object
+      required: [id, organizationId, ticketNumber, subject, status, priority, channel]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        ticketNumber:
+          type: integer
+        subject:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/TicketStatus'
+        priority:
+          $ref: '#/components/schemas/TicketPriority'
+        channel:
+          $ref: '#/components/schemas/TicketChannel'
+        queueId:
+          type: string
+          format: uuid
+          nullable: true
+        assigneeId:
+          type: string
+          format: uuid
+          nullable: true
+        contactId:
+          type: string
+          format: uuid
+          nullable: true
+        accountId:
+          type: string
+          format: uuid
+          nullable: true
+        slaPolicyId:
+          type: string
+          format: uuid
+          nullable: true
+        slaTimer:
+          $ref: '#/components/schemas/SlaTimer'
+        tags:
+          type: array
+          items:
+            type: string
+        customFields:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+        version:
+          type: integer
+    TicketComment:
+      type: object
+      required: [id, ticketId, body, visibility, authorId]
+      properties:
+        id:
+          type: string
+          format: uuid
+        ticketId:
+          type: string
+          format: uuid
+        body:
+          type: string
+        bodyFormat:
+          type: string
+          enum: [plain, markdown, html]
+        visibility:
+          $ref: '#/components/schemas/CommentVisibility'
+        authorId:
+          type: string
+          format: uuid
+        attachments:
+          type: array
+          items:
+            type: string
+            format: uuid
+        createdAt:
+          type: string
+          format: date-time
+    TicketDetail:
+      allOf:
+        - $ref: '#/components/schemas/Ticket'
+        - type: object
+          properties:
+            comments:
+              type: array
+              items:
+                $ref: '#/components/schemas/TicketComment'
+    TicketCreate:
+      type: object
+      required: [subject]
+      properties:
+        subject:
+          type: string
+        description:
+          type: string
+        priority:
+          $ref: '#/components/schemas/TicketPriority'
+        channel:
+          $ref: '#/components/schemas/TicketChannel'
+        queueId:
+          type: string
+          format: uuid
+        contactId:
+          type: string
+          format: uuid
+        accountId:
+          type: string
+          format: uuid
+        tags:
+          type: array
+          items:
+            type: string
+        customFields:
+          type: object
+          additionalProperties: true
+    TicketUpdate:
+      type: object
+      properties:
+        subject:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/TicketStatus'
+        priority:
+          $ref: '#/components/schemas/TicketPriority'
+        queueId:
+          type: string
+          format: uuid
+        tags:
+          type: array
+          items:
+            type: string
+        customFields:
+          type: object
+          additionalProperties: true
+    TicketAssign:
+      type: object
+      properties:
+        assigneeId:
+          type: string
+          format: uuid
+        queueId:
+          type: string
+          format: uuid
+        handoffNote:
+          type: string
+        notifyAssignee:
+          type: boolean
+          default: true
+    TicketMerge:
+      type: object
+      required: [mergeTicketIds]
+      properties:
+        mergeTicketIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+        combineConversations:
+          type: boolean
+          default: true
+    TicketCommentCreate:
+      type: object
+      required: [body, visibility]
+      properties:
+        body:
+          type: string
+        bodyFormat:
+          type: string
+          enum: [plain, markdown, html]
+        visibility:
+          $ref: '#/components/schemas/CommentVisibility'
+        attachments:
+          type: array
+          items:
+            type: string
+            format: uuid
+    TicketListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Ticket'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    SlaPolicy:
+      type: object
+      required: [id, organizationId, name, targets, isActive]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        targets:
+          type: array
+          items:
+            $ref: '#/components/schemas/SlaTarget'
+        defaultQueueIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        escalationRules:
+          type: object
+          additionalProperties: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    SlaPolicyCreate:
+      type: object
+      required: [name, targets]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        targets:
+          type: array
+          items:
+            $ref: '#/components/schemas/SlaTarget'
+        defaultQueueIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        escalationRules:
+          type: object
+          additionalProperties: true
+    SlaPolicyUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        targets:
+          type: array
+          items:
+            $ref: '#/components/schemas/SlaTarget'
+        isActive:
+          type: boolean
+        escalationRules:
+          type: object
+          additionalProperties: true
+    SlaPolicyListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SlaPolicy'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    SlaMetricsResponse:
+      type: object
+      properties:
+        openTickets:
+          type: integer
+        breachedCount:
+          type: integer
+        atRiskCount:
+          type: integer
+        firstResponseCompliancePct:
+          type: number
+        resolutionCompliancePct:
+          type: number
+        avgFirstResponseMinutes:
+          type: number
+        avgResolutionHours:
+          type: number
+    CannedResponse:
+      type: object
+      required: [id, organizationId, name, body, visibility]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        shortcut:
+          type: string
+          nullable: true
+        folder:
+          type: string
+          nullable: true
+        body:
+          type: string
+        bodyFormat:
+          type: string
+          enum: [plain, markdown, html]
+        visibility:
+          $ref: '#/components/schemas/CannedResponseVisibility'
+        usageCount30d:
+          type: integer
+        variables:
+          type: array
+          items:
+            type: string
+        attachments:
+          type: array
+          items:
+            type: string
+            format: uuid
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    CannedResponseCreate:
+      type: object
+      required: [name, body]
+      properties:
+        name:
+          type: string
+        shortcut:
+          type: string
+        folder:
+          type: string
+        body:
+          type: string
+        bodyFormat:
+          type: string
+          enum: [plain, markdown, html]
+        visibility:
+          $ref: '#/components/schemas/CannedResponseVisibility'
+    CannedResponseUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        shortcut:
+          type: string
+        folder:
+          type: string
+        body:
+          type: string
+        visibility:
+          $ref: '#/components/schemas/CannedResponseVisibility'
+    CannedResponseListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CannedResponse'
+        pagination:
+          $ref: '#/components/schemas/Pagination'

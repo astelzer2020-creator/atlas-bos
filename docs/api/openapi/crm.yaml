@@ -1,0 +1,1761 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS CRM API
+  version: 1.0.0
+  description: |
+    Customer Relationship Management API for Atlas BOS.
+    Manages accounts, contacts, leads, deals, pipeline stages, and deal activities.
+    Aligned with `customer` schema (ATLAS-DB-05).
+  contact:
+    name: Atlas Platform API Team
+    url: https://docs.atlas.example.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.atlas.example.com
+    description: Production
+  - url: https://api.staging.atlas.example.com
+    description: Staging
+  - url: http://localhost:3000
+    description: Local development
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+tags:
+  - name: Accounts
+    description: CRM account (company) management
+  - name: Contacts
+    description: Individual contact management
+  - name: Leads
+    description: Pre-qualification prospect management
+  - name: Deals
+    description: Sales opportunity management
+  - name: PipelineStages
+    description: Sales pipeline stage configuration
+  - name: DealActivities
+    description: Activities attached to deals
+
+paths:
+  /v1/organizations/{organizationId}/accounts:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Accounts]
+      operationId: listAccounts
+      summary: List accounts
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: accountType
+          in: query
+          schema:
+            $ref: '#/components/schemas/AccountType'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AccountStatus'
+        - name: ownerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Accounts]
+      operationId: createAccount
+      summary: Create account
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountCreate'
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/accounts/{accountId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      tags: [Accounts]
+      operationId: getAccount
+      summary: Get account by ID
+      responses:
+        '200':
+          description: Account details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Accounts]
+      operationId: updateAccount
+      summary: Update account
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountUpdate'
+      responses:
+        '200':
+          description: Account updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Accounts]
+      operationId: deleteAccount
+      summary: Soft-delete account
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Account deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/contacts:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Contacts]
+      operationId: listContacts
+      summary: List contacts
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: accountId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ContactStatus'
+        - name: ownerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of contacts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Contacts]
+      operationId: createContact
+      summary: Create contact
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactCreate'
+      responses:
+        '201':
+          description: Contact created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/contacts/{contactId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/ContactId'
+    get:
+      tags: [Contacts]
+      operationId: getContact
+      summary: Get contact by ID
+      responses:
+        '200':
+          description: Contact details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Contacts]
+      operationId: updateContact
+      summary: Update contact
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactUpdate'
+      responses:
+        '200':
+          description: Contact updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Contacts]
+      operationId: deleteContact
+      summary: Soft-delete contact
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Contact deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/contacts/merge:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    post:
+      tags: [Contacts]
+      operationId: mergeContacts
+      summary: Merge duplicate contacts
+      description: |
+        Merges a source contact into a target contact. Tags, activities, and deal
+        references are consolidated. Source contact is soft-deleted.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MergeContactsRequest'
+      responses:
+        '200':
+          description: Contacts merged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/leads:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Leads]
+      operationId: listLeads
+      summary: List leads
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/LeadStatus'
+        - name: assignedToId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: leadSource
+          in: query
+          schema:
+            $ref: '#/components/schemas/LeadSource'
+      responses:
+        '200':
+          description: Paginated list of leads
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeadCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Leads]
+      operationId: createLead
+      summary: Create lead
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeadCreate'
+      responses:
+        '201':
+          description: Lead created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lead'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/leads/{leadId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/LeadId'
+    get:
+      tags: [Leads]
+      operationId: getLead
+      summary: Get lead by ID
+      responses:
+        '200':
+          description: Lead details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lead'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Leads]
+      operationId: updateLead
+      summary: Update lead
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeadUpdate'
+      responses:
+        '200':
+          description: Lead updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lead'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Leads]
+      operationId: deleteLead
+      summary: Soft-delete lead
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Lead deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/leads/{leadId}/convert:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/LeadId'
+    post:
+      tags: [Leads]
+      operationId: convertLead
+      summary: Convert lead to contact, account, and optional deal
+      description: |
+        Transitions lead status to `converted`. Creates contact and optionally
+        account and deal. Terminal state — lead cannot be modified after conversion.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConvertLeadRequest'
+      responses:
+        '200':
+          description: Lead converted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConvertLeadResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/deals:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Deals]
+      operationId: listDeals
+      summary: List deals
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/DealStatus'
+        - name: pipelineStageId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: ownerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: accountId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of deals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DealCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Deals]
+      operationId: createDeal
+      summary: Create deal
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealCreate'
+      responses:
+        '201':
+          description: Deal created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deal'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/deals/{dealId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/DealId'
+    get:
+      tags: [Deals]
+      operationId: getDeal
+      summary: Get deal by ID
+      responses:
+        '200':
+          description: Deal details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deal'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Deals]
+      operationId: updateDeal
+      summary: Update deal
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealUpdate'
+      responses:
+        '200':
+          description: Deal updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deal'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Deals]
+      operationId: deleteDeal
+      summary: Soft-delete deal
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Deal deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/deals/{dealId}/move-stage:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/DealId'
+    post:
+      tags: [Deals]
+      operationId: moveDealStage
+      summary: Move deal to a different pipeline stage
+      description: |
+        Updates deal pipeline stage. Emits `customer.deal.stage_changed.v1` domain event.
+        Won/lost terminal stages set deal status accordingly.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveDealStageRequest'
+      responses:
+        '200':
+          description: Deal stage moved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deal'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/pipeline-stages:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [PipelineStages]
+      operationId: listPipelineStages
+      summary: List pipeline stages
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: pipelineId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of pipeline stages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineStageCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [PipelineStages]
+      operationId: createPipelineStage
+      summary: Create pipeline stage
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PipelineStageCreate'
+      responses:
+        '201':
+          description: Pipeline stage created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineStage'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/pipeline-stages/{stageId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/StageId'
+    get:
+      tags: [PipelineStages]
+      operationId: getPipelineStage
+      summary: Get pipeline stage by ID
+      responses:
+        '200':
+          description: Pipeline stage details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineStage'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [PipelineStages]
+      operationId: updatePipelineStage
+      summary: Update pipeline stage
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PipelineStageUpdate'
+      responses:
+        '200':
+          description: Pipeline stage updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineStage'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [PipelineStages]
+      operationId: deletePipelineStage
+      summary: Soft-delete pipeline stage
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Pipeline stage deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/deals/{dealId}/activities:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/DealId'
+    get:
+      tags: [DealActivities]
+      operationId: listDealActivities
+      summary: List activities for a deal
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: activityType
+          in: query
+          schema:
+            $ref: '#/components/schemas/DealActivityType'
+        - name: isCompleted
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated list of deal activities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DealActivityCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [DealActivities]
+      operationId: createDealActivity
+      summary: Create deal activity
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealActivityCreate'
+      responses:
+        '201':
+          description: Deal activity created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DealActivity'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/deal-activities/{activityId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/ActivityId'
+    get:
+      tags: [DealActivities]
+      operationId: getDealActivity
+      summary: Get deal activity by ID
+      responses:
+        '200':
+          description: Deal activity details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DealActivity'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [DealActivities]
+      operationId: updateDealActivity
+      summary: Update deal activity
+      description: Subject and description immutable after 24 hours per domain rules.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealActivityUpdate'
+      responses:
+        '200':
+          description: Deal activity updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DealActivity'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [DealActivities]
+      operationId: deleteDealActivity
+      summary: Soft-delete deal activity
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Deal activity deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token with organization scope
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: API key prefixed with Bearer
+
+  parameters:
+    OrganizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Organization (tenant) identifier
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ContactId:
+      name: contactId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    LeadId:
+      name: leadId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    DealId:
+      name: dealId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    StageId:
+      name: stageId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ActivityId:
+      name: activityId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+      description: Opaque signed cursor for keyset pagination
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Sort:
+      name: sort
+      in: query
+      schema:
+        type: string
+        default: -createdAt
+      description: Sort fields; prefix with `-` for descending
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IfMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+      description: Optimistic concurrency version (entity version number)
+
+  responses:
+    Problem:
+      description: RFC 7807 Problem Details
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+          example: https://api.atlas.example.com/errors/validation-failed
+        title:
+          type: string
+          example: Validation Failed
+        status:
+          type: integer
+          example: 422
+        detail:
+          type: string
+        instance:
+          type: string
+        requestId:
+          type: string
+          format: uuid
+        code:
+          type: string
+          description: Machine-readable error code (domain_entity_reason)
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+    FieldError:
+      type: object
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+
+    Pagination:
+      type: object
+      required: [hasMore, limit]
+      properties:
+        hasMore:
+          type: boolean
+        nextCursor:
+          type: [string, 'null']
+        prevCursor:
+          type: [string, 'null']
+        limit:
+          type: integer
+
+    CursorPage:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items: {}
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    AuditFields:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: [string, 'null']
+          format: date-time
+        createdBy:
+          type: [string, 'null']
+          format: uuid
+        updatedBy:
+          type: [string, 'null']
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+
+    Address:
+      type: object
+      additionalProperties: true
+      properties:
+        street1:
+          type: string
+        street2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+
+    AccountType:
+      type: string
+      enum: [prospect, customer, partner, vendor, competitor, other]
+
+    AccountStatus:
+      type: string
+      enum: [active, inactive, archived]
+
+    Account:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, name, accountType, status, currencyCode]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            externalId:
+              type: [string, 'null']
+            name:
+              type: string
+            legalName:
+              type: [string, 'null']
+            accountType:
+              $ref: '#/components/schemas/AccountType'
+            industry:
+              type: [string, 'null']
+            website:
+              type: [string, 'null']
+            phone:
+              type: [string, 'null']
+            email:
+              type: [string, 'null']
+              format: email
+            billingAddress:
+              $ref: '#/components/schemas/Address'
+            shippingAddress:
+              $ref: '#/components/schemas/Address'
+            annualRevenue:
+              type: [string, 'null']
+              description: NUMERIC(19,4) as decimal string
+            employeeCount:
+              type: [integer, 'null']
+            currencyCode:
+              type: string
+              minLength: 3
+              maxLength: 3
+            parentAccountId:
+              type: [string, 'null']
+              format: uuid
+            ownerId:
+              type: [string, 'null']
+              format: uuid
+            status:
+              $ref: '#/components/schemas/AccountStatus'
+            description:
+              type: [string, 'null']
+            metadata:
+              type: object
+              additionalProperties: true
+
+    AccountCreate:
+      type: object
+      required: [name]
+      properties:
+        externalId:
+          type: string
+        name:
+          type: string
+        legalName:
+          type: string
+        accountType:
+          $ref: '#/components/schemas/AccountType'
+        industry:
+          type: string
+        website:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+        billingAddress:
+          $ref: '#/components/schemas/Address'
+        shippingAddress:
+          $ref: '#/components/schemas/Address'
+        annualRevenue:
+          type: string
+        employeeCount:
+          type: integer
+        currencyCode:
+          type: string
+          minLength: 3
+          maxLength: 3
+          default: USD
+        parentAccountId:
+          type: string
+          format: uuid
+        ownerId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+        description:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    AccountUpdate:
+      allOf:
+        - $ref: '#/components/schemas/AccountCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+
+    AccountCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Account'
+
+    ContactStatus:
+      type: string
+      enum: [active, inactive, bounced, unsubscribed]
+
+    Contact:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, displayName, status, isPrimary]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            externalId:
+              type: [string, 'null']
+            accountId:
+              type: [string, 'null']
+              format: uuid
+            salutation:
+              type: [string, 'null']
+            firstName:
+              type: [string, 'null']
+            lastName:
+              type: [string, 'null']
+            displayName:
+              type: string
+            email:
+              type: [string, 'null']
+              format: email
+            phone:
+              type: [string, 'null']
+            mobile:
+              type: [string, 'null']
+            jobTitle:
+              type: [string, 'null']
+            department:
+              type: [string, 'null']
+            mailingAddress:
+              $ref: '#/components/schemas/Address'
+            isPrimary:
+              type: boolean
+            ownerId:
+              type: [string, 'null']
+              format: uuid
+            leadSource:
+              type: [string, 'null']
+            status:
+              $ref: '#/components/schemas/ContactStatus'
+            lastContactedAt:
+              type: [string, 'null']
+              format: date-time
+            metadata:
+              type: object
+              additionalProperties: true
+
+    ContactCreate:
+      type: object
+      required: [displayName]
+      properties:
+        externalId:
+          type: string
+        accountId:
+          type: string
+          format: uuid
+        salutation:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        mobile:
+          type: string
+        jobTitle:
+          type: string
+        department:
+          type: string
+        mailingAddress:
+          $ref: '#/components/schemas/Address'
+        isPrimary:
+          type: boolean
+          default: false
+        ownerId:
+          type: string
+          format: uuid
+        leadSource:
+          type: string
+        status:
+          $ref: '#/components/schemas/ContactStatus'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ContactUpdate:
+      allOf:
+        - $ref: '#/components/schemas/ContactCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+            lastContactedAt:
+              type: string
+              format: date-time
+
+    ContactCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Contact'
+
+    MergeContactsRequest:
+      type: object
+      required: [sourceContactId, targetContactId]
+      properties:
+        sourceContactId:
+          type: string
+          format: uuid
+          description: Contact to merge from (will be soft-deleted)
+        targetContactId:
+          type: string
+          format: uuid
+          description: Contact to merge into (surviving record)
+        fieldOverrides:
+          type: object
+          description: Field values to take from source when conflicting
+          additionalProperties: true
+
+    LeadSource:
+      type: string
+      enum: [website, referral, advertisement, cold_call, trade_show, partner, social_media, other]
+
+    LeadStatus:
+      type: string
+      enum: [new, contacted, qualified, converted, disqualified]
+
+    LeadRating:
+      type: string
+      enum: [hot, warm, cold]
+
+    Lead:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, displayName, leadSource, status, score]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            externalId:
+              type: [string, 'null']
+            firstName:
+              type: [string, 'null']
+            lastName:
+              type: [string, 'null']
+            displayName:
+              type: string
+            email:
+              type: [string, 'null']
+              format: email
+            phone:
+              type: [string, 'null']
+            companyName:
+              type: [string, 'null']
+            jobTitle:
+              type: [string, 'null']
+            leadSource:
+              $ref: '#/components/schemas/LeadSource'
+            status:
+              $ref: '#/components/schemas/LeadStatus'
+            rating:
+              oneOf:
+                - $ref: '#/components/schemas/LeadRating'
+                - type: 'null'
+            score:
+              type: integer
+              minimum: 0
+              maximum: 100
+            assignedToId:
+              type: [string, 'null']
+              format: uuid
+            convertedAt:
+              type: [string, 'null']
+              format: date-time
+            convertedContactId:
+              type: [string, 'null']
+              format: uuid
+            convertedAccountId:
+              type: [string, 'null']
+              format: uuid
+            convertedDealId:
+              type: [string, 'null']
+              format: uuid
+            disqualifyReason:
+              type: [string, 'null']
+            metadata:
+              type: object
+              additionalProperties: true
+
+    LeadCreate:
+      type: object
+      required: [displayName]
+      properties:
+        externalId:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        companyName:
+          type: string
+        jobTitle:
+          type: string
+        leadSource:
+          $ref: '#/components/schemas/LeadSource'
+        status:
+          $ref: '#/components/schemas/LeadStatus'
+        rating:
+          $ref: '#/components/schemas/LeadRating'
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        assignedToId:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+
+    LeadUpdate:
+      allOf:
+        - $ref: '#/components/schemas/LeadCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+            disqualifyReason:
+              type: string
+
+    LeadCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Lead'
+
+    ConvertLeadRequest:
+      type: object
+      properties:
+        createAccount:
+          type: boolean
+          default: true
+        accountId:
+          type: string
+          format: uuid
+          description: Existing account to link; overrides createAccount
+        accountName:
+          type: string
+          description: Name for new account when createAccount is true
+        createDeal:
+          type: boolean
+          default: false
+        dealName:
+          type: string
+        pipelineStageId:
+          type: string
+          format: uuid
+        dealAmount:
+          type: string
+        ownerId:
+          type: string
+          format: uuid
+
+    ConvertLeadResponse:
+      type: object
+      required: [lead, contact]
+      properties:
+        lead:
+          $ref: '#/components/schemas/Lead'
+        contact:
+          $ref: '#/components/schemas/Contact'
+        account:
+          $ref: '#/components/schemas/Account'
+        deal:
+          $ref: '#/components/schemas/Deal'
+
+    DealStatus:
+      type: string
+      enum: [open, won, lost, abandoned]
+
+    Deal:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, name, pipelineStageId, ownerId, amount, currencyCode, probability, status]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            externalId:
+              type: [string, 'null']
+            name:
+              type: string
+            accountId:
+              type: [string, 'null']
+              format: uuid
+            contactId:
+              type: [string, 'null']
+              format: uuid
+            pipelineStageId:
+              type: string
+              format: uuid
+            ownerId:
+              type: string
+              format: uuid
+            amount:
+              type: string
+              description: NUMERIC(19,4) as decimal string
+            currencyCode:
+              type: string
+              minLength: 3
+              maxLength: 3
+            probability:
+              type: integer
+              minimum: 0
+              maximum: 100
+            expectedCloseDate:
+              type: [string, 'null']
+              format: date
+            actualCloseDate:
+              type: [string, 'null']
+              format: date
+            status:
+              $ref: '#/components/schemas/DealStatus'
+            lossReason:
+              type: [string, 'null']
+            leadSource:
+              type: [string, 'null']
+            description:
+              type: [string, 'null']
+            metadata:
+              type: object
+              additionalProperties: true
+
+    DealCreate:
+      type: object
+      required: [name, pipelineStageId, ownerId]
+      properties:
+        externalId:
+          type: string
+        name:
+          type: string
+        accountId:
+          type: string
+          format: uuid
+        contactId:
+          type: string
+          format: uuid
+        pipelineStageId:
+          type: string
+          format: uuid
+        ownerId:
+          type: string
+          format: uuid
+        amount:
+          type: string
+          default: '0'
+        currencyCode:
+          type: string
+          minLength: 3
+          maxLength: 3
+          default: USD
+        probability:
+          type: integer
+          minimum: 0
+          maximum: 100
+        expectedCloseDate:
+          type: string
+          format: date
+        leadSource:
+          type: string
+        description:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    DealUpdate:
+      allOf:
+        - $ref: '#/components/schemas/DealCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+            status:
+              $ref: '#/components/schemas/DealStatus'
+            lossReason:
+              type: string
+            actualCloseDate:
+              type: string
+              format: date
+
+    DealCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Deal'
+
+    MoveDealStageRequest:
+      type: object
+      required: [pipelineStageId, version]
+      properties:
+        pipelineStageId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        lossReason:
+          type: string
+          description: Required when moving to a lost stage
+
+    PipelineStage:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, pipelineId, pipelineName, name, sortOrder, probability, isDefault, isWon, isLost, isClosed]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            pipelineId:
+              type: string
+              format: uuid
+            pipelineName:
+              type: string
+            name:
+              type: string
+            description:
+              type: [string, 'null']
+            sortOrder:
+              type: integer
+            probability:
+              type: integer
+              minimum: 0
+              maximum: 100
+            isDefault:
+              type: boolean
+            isWon:
+              type: boolean
+            isLost:
+              type: boolean
+            isClosed:
+              type: boolean
+            color:
+              type: [string, 'null']
+            metadata:
+              type: object
+              additionalProperties: true
+
+    PipelineStageCreate:
+      type: object
+      required: [name, sortOrder]
+      properties:
+        pipelineId:
+          type: string
+          format: uuid
+        pipelineName:
+          type: string
+          default: Default Pipeline
+        name:
+          type: string
+        description:
+          type: string
+        sortOrder:
+          type: integer
+        probability:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 0
+        isDefault:
+          type: boolean
+          default: false
+        isWon:
+          type: boolean
+          default: false
+        isLost:
+          type: boolean
+          default: false
+        isClosed:
+          type: boolean
+          default: false
+        color:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    PipelineStageUpdate:
+      allOf:
+        - $ref: '#/components/schemas/PipelineStageCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+
+    PipelineStageCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/PipelineStage'
+
+    DealActivityType:
+      type: string
+      enum: [call, email, meeting, task, note, demo, proposal, other]
+
+    DealActivity:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, dealId, activityType, subject, isCompleted]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            dealId:
+              type: string
+              format: uuid
+            activityType:
+              $ref: '#/components/schemas/DealActivityType'
+            subject:
+              type: string
+            description:
+              type: [string, 'null']
+            scheduledAt:
+              type: [string, 'null']
+              format: date-time
+            completedAt:
+              type: [string, 'null']
+              format: date-time
+            durationMinutes:
+              type: [integer, 'null']
+              minimum: 0
+            outcome:
+              type: [string, 'null']
+            assignedToId:
+              type: [string, 'null']
+              format: uuid
+            contactId:
+              type: [string, 'null']
+              format: uuid
+            isCompleted:
+              type: boolean
+            metadata:
+              type: object
+              additionalProperties: true
+
+    DealActivityCreate:
+      type: object
+      required: [activityType, subject]
+      properties:
+        activityType:
+          $ref: '#/components/schemas/DealActivityType'
+        subject:
+          type: string
+        description:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+          minimum: 0
+        assignedToId:
+          type: string
+          format: uuid
+        contactId:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+
+    DealActivityUpdate:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+        description:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+          minimum: 0
+        outcome:
+          type: string
+        assignedToId:
+          type: string
+          format: uuid
+        isCompleted:
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties: true
+
+    DealActivityCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/DealActivity'

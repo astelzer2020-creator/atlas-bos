@@ -1,0 +1,804 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS Messaging API
+  version: 1.0.0
+  description: |
+    REST API for the Messaging bounded context (schema: `messaging`).
+    Resources: Channels, Messages, DMs, Threads.
+    Aligns with ATLAS-ARCH-13 messaging architecture.
+servers:
+  - url: https://api.atlas.example.com
+security:
+  - bearerAuth: []
+tags:
+  - name: Channels
+  - name: Messages
+  - name: DMs
+  - name: Threads
+paths:
+  /v1/organizations/{organizationId}/channels:
+    get:
+      operationId: listChannels
+      tags: [Channels]
+      summary: List channels (public and member channels)
+      x-atlas-latency-tier: standard
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: visibility
+          in: query
+          schema:
+            $ref: '#/components/schemas/ConversationVisibility'
+        - name: includeArchived
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Paginated channel list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelListResponse'
+    post:
+      operationId: createChannel
+      tags: [Channels]
+      summary: Create a channel
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelCreate'
+      responses:
+        '201':
+          description: Channel created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Channel'
+  /v1/organizations/{organizationId}/channels/{channelId}:
+    get:
+      operationId: getChannel
+      tags: [Channels]
+      summary: Get channel by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/channelId'
+      responses:
+        '200':
+          description: Channel details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Channel'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateChannel
+      tags: [Channels]
+      summary: Update channel settings
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/channelId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelUpdate'
+      responses:
+        '200':
+          description: Channel updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Channel'
+  /v1/organizations/{organizationId}/channels/{channelId}/members:
+    post:
+      operationId: addChannelMembers
+      tags: [Channels]
+      summary: Add members to a channel
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/channelId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelMembersAdd'
+      responses:
+        '200':
+          description: Members added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  addedCount:
+                    type: integer
+  /v1/organizations/{organizationId}/channels/{channelId}/messages:
+    get:
+      operationId: listChannelMessages
+      tags: [Messages]
+      summary: List messages in a channel
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/channelId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: parentMessageId
+          in: query
+          description: Omit for top-level messages only
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated message list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageListResponse'
+    post:
+      operationId: sendChannelMessage
+      tags: [Messages]
+      summary: Send a message to a channel
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/channelId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageCreate'
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+  /v1/organizations/{organizationId}/messages/{messageId}:
+    get:
+      operationId: getMessage
+      tags: [Messages]
+      summary: Get message by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/messageId'
+      responses:
+        '200':
+          description: Message details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateMessage
+      tags: [Messages]
+      summary: Edit a message
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/messageId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageUpdate'
+      responses:
+        '200':
+          description: Message updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+    delete:
+      operationId: deleteMessage
+      tags: [Messages]
+      summary: Soft-delete a message
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/messageId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '204':
+          description: Message deleted
+  /v1/organizations/{organizationId}/dms:
+    get:
+      operationId: listDirectMessages
+      tags: [DMs]
+      summary: List DM and group DM conversations
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Paginated DM conversation list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmConversationListResponse'
+    post:
+      operationId: createDirectMessage
+      tags: [DMs]
+      summary: Start a DM or group DM conversation
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmConversationCreate'
+      responses:
+        '201':
+          description: DM conversation created or existing returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmConversation'
+  /v1/organizations/{organizationId}/dms/{conversationId}:
+    get:
+      operationId: getDirectMessage
+      tags: [DMs]
+      summary: Get DM conversation by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/conversationId'
+      responses:
+        '200':
+          description: DM conversation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmConversation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/organizations/{organizationId}/dms/{conversationId}/messages:
+    get:
+      operationId: listDmMessages
+      tags: [DMs]
+      summary: List messages in a DM conversation
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/conversationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Paginated DM message list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageListResponse'
+    post:
+      operationId: sendDmMessage
+      tags: [DMs]
+      summary: Send a message in a DM conversation
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/conversationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageCreate'
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+  /v1/organizations/{organizationId}/threads/{parentMessageId}:
+    get:
+      operationId: getThread
+      tags: [Threads]
+      summary: Get thread replies for a parent message
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/parentMessageId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Thread with replies
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadDetail'
+  /v1/organizations/{organizationId}/threads/{parentMessageId}/replies:
+    post:
+      operationId: replyInThread
+      tags: [Threads]
+      summary: Reply in a message thread
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/parentMessageId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageCreate'
+      responses:
+        '201':
+          description: Thread reply sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+  /v1/organizations/{organizationId}/messages/search:
+    post:
+      operationId: searchMessages
+      tags: [Messages]
+      summary: Search messages (permission-aware)
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageSearchRequest'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageSearchResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    organizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    channelId:
+      name: channelId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    conversationId:
+      name: conversationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    messageId:
+      name: messageId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    parentMessageId:
+      name: parentMessageId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+    Pagination:
+      type: object
+      required: [has_more, limit]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+    ConversationType:
+      type: string
+      enum: [channel, dm, group_dm, email_thread, sms_thread, customer_chat]
+    ConversationVisibility:
+      type: string
+      enum: [public, private, direct, external]
+    EncryptionMode:
+      type: string
+      enum: [none, e2e]
+    ParticipantType:
+      type: string
+      enum: [user, contact, bot, external_email]
+    ParticipantRole:
+      type: string
+      enum: [owner, member, guest, agent]
+    NotificationLevel:
+      type: string
+      enum: [all, mentions, mute]
+    BodyFormat:
+      type: string
+      enum: [plain, markdown, rich, ciphertext]
+    EntityRef:
+      type: object
+      properties:
+        entityType:
+          type: string
+        entityId:
+          type: string
+          format: uuid
+    ConversationMember:
+      type: object
+      required: [participantType, participantId, role]
+      properties:
+        participantType:
+          $ref: '#/components/schemas/ParticipantType'
+        participantId:
+          type: string
+          format: uuid
+        role:
+          $ref: '#/components/schemas/ParticipantRole'
+        joinedAt:
+          type: string
+          format: date-time
+        lastReadAt:
+          type: string
+          format: date-time
+          nullable: true
+        notificationLevel:
+          $ref: '#/components/schemas/NotificationLevel'
+    Channel:
+      type: object
+      required: [id, organizationId, type, visibility, encryptionMode]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [channel]
+        name:
+          type: string
+        visibility:
+          $ref: '#/components/schemas/ConversationVisibility'
+        encryptionMode:
+          $ref: '#/components/schemas/EncryptionMode'
+        entityRef:
+          $ref: '#/components/schemas/EntityRef'
+          nullable: true
+        memberCount:
+          type: integer
+        metadata:
+          type: object
+          additionalProperties: true
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+    ChannelCreate:
+      type: object
+      required: [name, visibility]
+      properties:
+        name:
+          type: string
+        visibility:
+          $ref: '#/components/schemas/ConversationVisibility'
+        encryptionMode:
+          $ref: '#/components/schemas/EncryptionMode'
+        memberIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        entityRef:
+          $ref: '#/components/schemas/EntityRef'
+        metadata:
+          type: object
+          additionalProperties: true
+    ChannelUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    ChannelMembersAdd:
+      type: object
+      required: [memberIds]
+      properties:
+        memberIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        role:
+          $ref: '#/components/schemas/ParticipantRole'
+    ChannelListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Channel'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    DmConversation:
+      type: object
+      required: [id, organizationId, type, visibility]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [dm, group_dm]
+        visibility:
+          $ref: '#/components/schemas/ConversationVisibility'
+        encryptionMode:
+          $ref: '#/components/schemas/EncryptionMode'
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationMember'
+        lastMessageAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastMessagePreview:
+          type: string
+          nullable: true
+        unreadCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+    DmConversationCreate:
+      type: object
+      required: [participantIds]
+      properties:
+        participantIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 9
+        encryptionMode:
+          $ref: '#/components/schemas/EncryptionMode'
+    DmConversationListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DmConversation'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    Message:
+      type: object
+      required: [id, organizationId, conversationId, senderType, senderId, bodyFormat, body, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        conversationId:
+          type: string
+          format: uuid
+        parentMessageId:
+          type: string
+          format: uuid
+          nullable: true
+        senderType:
+          $ref: '#/components/schemas/ParticipantType'
+        senderId:
+          type: string
+          format: uuid
+        bodyFormat:
+          $ref: '#/components/schemas/BodyFormat'
+        body:
+          type: string
+        bodyPreview:
+          type: string
+          nullable: true
+        attachments:
+          type: array
+          items:
+            type: string
+            format: uuid
+        replyCount:
+          type: integer
+        metadata:
+          type: object
+          additionalProperties: true
+        editedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    MessageCreate:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+        bodyFormat:
+          $ref: '#/components/schemas/BodyFormat'
+        attachments:
+          type: array
+          items:
+            type: string
+            format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+    MessageUpdate:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+        bodyFormat:
+          $ref: '#/components/schemas/BodyFormat'
+    MessageListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    ThreadDetail:
+      type: object
+      required: [parentMessage, replies, replyCount]
+      properties:
+        parentMessage:
+          $ref: '#/components/schemas/Message'
+        replies:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+        replyCount:
+          type: integer
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    MessageSearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+        conversationId:
+          type: string
+          format: uuid
+        conversationType:
+          $ref: '#/components/schemas/ConversationType'
+        senderId:
+          type: string
+          format: uuid
+        fromDate:
+          type: string
+          format: date-time
+        toDate:
+          type: string
+          format: date-time
+        limit:
+          type: integer
+          default: 25
+    MessageSearchResult:
+      type: object
+      required: [message, conversationId, highlight]
+      properties:
+        message:
+          $ref: '#/components/schemas/Message'
+        conversationId:
+          type: string
+          format: uuid
+        conversationName:
+          type: string
+          nullable: true
+        highlight:
+          type: string
+    MessageSearchResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageSearchResult'
+        totalCount:
+          type: integer

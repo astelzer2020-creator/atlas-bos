@@ -1,0 +1,1440 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS HR API
+  version: 1.0.0
+  description: |
+    Human Resources API for Atlas BOS.
+    Manages employees, departments, positions, time-off requests, and org chart.
+    Aligned with `workforce` schema (ATLAS-DB-08).
+  contact:
+    name: Atlas Platform API Team
+    url: https://docs.atlas.example.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.atlas.example.com
+    description: Production
+  - url: https://api.staging.atlas.example.com
+    description: Staging
+  - url: http://localhost:3000
+    description: Local development
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+tags:
+  - name: Employees
+    description: Employee master data
+  - name: Departments
+    description: Department hierarchy
+  - name: Positions
+    description: Position definitions and headcount
+  - name: TimeOffRequests
+    description: Time-off request workflow
+  - name: OrgChart
+    description: Organizational chart structure
+
+paths:
+  /v1/organizations/{organizationId}/employees:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Employees]
+      operationId: listEmployees
+      summary: List employees
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: departmentId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: employmentStatus
+          in: query
+          schema:
+            $ref: '#/components/schemas/EmploymentStatus'
+        - name: managerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of employees
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Employees]
+      operationId: createEmployee
+      summary: Create employee
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeCreate'
+      responses:
+        '201':
+          description: Employee created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/employees/{employeeId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/EmployeeId'
+    get:
+      tags: [Employees]
+      operationId: getEmployee
+      summary: Get employee by ID
+      responses:
+        '200':
+          description: Employee details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Employees]
+      operationId: updateEmployee
+      summary: Update employee
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeUpdate'
+      responses:
+        '200':
+          description: Employee updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Employees]
+      operationId: deleteEmployee
+      summary: Soft-delete employee
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Employee deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/departments:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Departments]
+      operationId: listDepartments
+      summary: List departments
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: parentDepartmentId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of departments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Departments]
+      operationId: createDepartment
+      summary: Create department
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DepartmentCreate'
+      responses:
+        '201':
+          description: Department created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/departments/{departmentId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/DepartmentId'
+    get:
+      tags: [Departments]
+      operationId: getDepartment
+      summary: Get department by ID
+      responses:
+        '200':
+          description: Department details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Departments]
+      operationId: updateDepartment
+      summary: Update department
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DepartmentUpdate'
+      responses:
+        '200':
+          description: Department updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Departments]
+      operationId: deleteDepartment
+      summary: Soft-delete department
+      description: Blocked if active employees are assigned.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Department deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/positions:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Positions]
+      operationId: listPositions
+      summary: List positions
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: departmentId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated list of positions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PositionCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Positions]
+      operationId: createPosition
+      summary: Create position
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PositionCreate'
+      responses:
+        '201':
+          description: Position created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Position'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/positions/{positionId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/PositionId'
+    get:
+      tags: [Positions]
+      operationId: getPosition
+      summary: Get position by ID
+      responses:
+        '200':
+          description: Position details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Position'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Positions]
+      operationId: updatePosition
+      summary: Update position
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PositionUpdate'
+      responses:
+        '200':
+          description: Position updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Position'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Positions]
+      operationId: deletePosition
+      summary: Soft-delete position
+      description: Blocked if filledCount > 0.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Position deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/time-off-requests:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [TimeOffRequests]
+      operationId: listTimeOffRequests
+      summary: List time-off requests
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: employeeId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/TimeOffRequestStatus'
+        - name: approverId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of time-off requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeOffRequestCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [TimeOffRequests]
+      operationId: createTimeOffRequest
+      summary: Create time-off request
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimeOffRequestCreate'
+      responses:
+        '201':
+          description: Time-off request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeOffRequest'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/time-off-requests/{requestId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/RequestId'
+    get:
+      tags: [TimeOffRequests]
+      operationId: getTimeOffRequest
+      summary: Get time-off request by ID
+      responses:
+        '200':
+          description: Time-off request details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeOffRequest'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [TimeOffRequests]
+      operationId: updateTimeOffRequest
+      summary: Update time-off request
+      description: Only pending requests can be modified by requester.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimeOffRequestUpdate'
+      responses:
+        '200':
+          description: Time-off request updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeOffRequest'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [TimeOffRequests]
+      operationId: deleteTimeOffRequest
+      summary: Soft-delete time-off request
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Time-off request deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/time-off-requests/{requestId}/approve:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/RequestId'
+    post:
+      tags: [TimeOffRequests]
+      operationId: approveTimeOffRequest
+      summary: Approve time-off request
+      description: |
+        Transitions status from `pending` to `approved`.
+        Emits `workforce.time_off.approved.v1` domain event.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveTimeOffRequest'
+      responses:
+        '200':
+          description: Time-off request approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeOffRequest'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/time-off-requests/{requestId}/deny:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/RequestId'
+    post:
+      tags: [TimeOffRequests]
+      operationId: denyTimeOffRequest
+      summary: Deny time-off request
+      description: Transitions status from `pending` to `rejected`.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DenyTimeOffRequest'
+      responses:
+        '200':
+          description: Time-off request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeOffRequest'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/org-chart:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [OrgChart]
+      operationId: getOrgChart
+      summary: Get organizational chart
+      description: Returns the full active org chart tree for the organization.
+      parameters:
+        - name: departmentId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter chart to a department subtree
+        - name: rootEmployeeId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Start chart from a specific manager node
+      responses:
+        '200':
+          description: Organizational chart
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrgChart'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/org-chart/nodes:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [OrgChart]
+      operationId: listOrgChartNodes
+      summary: List org chart nodes
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: departmentId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: managerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of org chart nodes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrgChartNodeCursorPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [OrgChart]
+      operationId: createOrgChartNode
+      summary: Create org chart node
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrgChartNodeCreate'
+      responses:
+        '201':
+          description: Org chart node created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrgChartNode'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /v1/organizations/{organizationId}/org-chart/nodes/{nodeId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/NodeId'
+    get:
+      tags: [OrgChart]
+      operationId: getOrgChartNode
+      summary: Get org chart node by ID
+      responses:
+        '200':
+          description: Org chart node details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrgChartNode'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [OrgChart]
+      operationId: updateOrgChartNode
+      summary: Update org chart node
+      description: Manager assignment validated to prevent circular references.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrgChartNodeUpdate'
+      responses:
+        '200':
+          description: Org chart node updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrgChartNode'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [OrgChart]
+      operationId: deleteOrgChartNode
+      summary: Soft-delete org chart node
+      description: Prefer deactivating (`isActive = false`) over delete.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Org chart node deleted
+        default:
+          $ref: '#/components/responses/Problem'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+
+  parameters:
+    OrganizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    EmployeeId:
+      name: employeeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    DepartmentId:
+      name: departmentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PositionId:
+      name: positionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RequestId:
+      name: requestId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    NodeId:
+      name: nodeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Sort:
+      name: sort
+      in: query
+      schema:
+        type: string
+        default: -createdAt
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IfMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+
+  responses:
+    Problem:
+      description: RFC 7807 Problem Details
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        requestId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+    FieldError:
+      type: object
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+
+    Pagination:
+      type: object
+      required: [hasMore, limit]
+      properties:
+        hasMore:
+          type: boolean
+        nextCursor:
+          type: [string, 'null']
+        prevCursor:
+          type: [string, 'null']
+        limit:
+          type: integer
+
+    CursorPage:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items: {}
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    AuditFields:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: [string, 'null']
+          format: date-time
+        createdBy:
+          type: [string, 'null']
+          format: uuid
+        updatedBy:
+          type: [string, 'null']
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+
+    Address:
+      type: object
+      additionalProperties: true
+
+    EmergencyContact:
+      type: object
+      additionalProperties: true
+      properties:
+        name:
+          type: string
+        relationship:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+
+    EmploymentStatus:
+      type: string
+      enum: [active, on_leave, terminated, suspended]
+
+    Employee:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, employeeNumber, firstName, lastName, displayName, workEmail, hireDate, employmentStatus, timezone]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            userId:
+              type: [string, 'null']
+              format: uuid
+            employeeNumber:
+              type: string
+            externalId:
+              type: [string, 'null']
+            firstName:
+              type: string
+            lastName:
+              type: string
+            displayName:
+              type: string
+            workEmail:
+              type: string
+              format: email
+            personalEmail:
+              type: [string, 'null']
+              format: email
+            phone:
+              type: [string, 'null']
+            departmentId:
+              type: [string, 'null']
+              format: uuid
+            positionId:
+              type: [string, 'null']
+              format: uuid
+            managerId:
+              type: [string, 'null']
+              format: uuid
+            hireDate:
+              type: string
+              format: date
+            terminationDate:
+              type: [string, 'null']
+              format: date
+            employmentStatus:
+              $ref: '#/components/schemas/EmploymentStatus'
+            workLocation:
+              type: [string, 'null']
+            timezone:
+              type: string
+            avatarUrl:
+              type: [string, 'null']
+              format: uri
+            dateOfBirth:
+              type: [string, 'null']
+              format: date
+            gender:
+              type: [string, 'null']
+            emergencyContact:
+              $ref: '#/components/schemas/EmergencyContact'
+            address:
+              $ref: '#/components/schemas/Address'
+            metadata:
+              type: object
+              additionalProperties: true
+
+    EmployeeCreate:
+      type: object
+      required: [employeeNumber, firstName, lastName, displayName, workEmail, hireDate]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        employeeNumber:
+          type: string
+        externalId:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        displayName:
+          type: string
+        workEmail:
+          type: string
+          format: email
+        personalEmail:
+          type: string
+          format: email
+        phone:
+          type: string
+        departmentId:
+          type: string
+          format: uuid
+        positionId:
+          type: string
+          format: uuid
+        managerId:
+          type: string
+          format: uuid
+        hireDate:
+          type: string
+          format: date
+        employmentStatus:
+          $ref: '#/components/schemas/EmploymentStatus'
+        workLocation:
+          type: string
+        timezone:
+          type: string
+          default: UTC
+        avatarUrl:
+          type: string
+          format: uri
+        dateOfBirth:
+          type: string
+          format: date
+        gender:
+          type: string
+        emergencyContact:
+          $ref: '#/components/schemas/EmergencyContact'
+        address:
+          $ref: '#/components/schemas/Address'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    EmployeeUpdate:
+      allOf:
+        - $ref: '#/components/schemas/EmployeeCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+            terminationDate:
+              type: string
+              format: date
+
+    EmployeeCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Employee'
+
+    Department:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, code, name, isActive]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            parentDepartmentId:
+              type: [string, 'null']
+              format: uuid
+            code:
+              type: string
+            name:
+              type: string
+            description:
+              type: [string, 'null']
+            costCenterCode:
+              type: [string, 'null']
+            managerId:
+              type: [string, 'null']
+              format: uuid
+            isActive:
+              type: boolean
+            metadata:
+              type: object
+              additionalProperties: true
+
+    DepartmentCreate:
+      type: object
+      required: [code, name]
+      properties:
+        parentDepartmentId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        costCenterCode:
+          type: string
+        managerId:
+          type: string
+          format: uuid
+        isActive:
+          type: boolean
+          default: true
+        metadata:
+          type: object
+          additionalProperties: true
+
+    DepartmentUpdate:
+      allOf:
+        - $ref: '#/components/schemas/DepartmentCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+
+    DepartmentCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Department'
+
+    EmploymentType:
+      type: string
+      enum: [full_time, part_time, contractor, intern, temporary]
+
+    Position:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, departmentId, code, title, employmentType, headcount, filledCount, currencyCode, isActive]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            departmentId:
+              type: string
+              format: uuid
+            code:
+              type: string
+            title:
+              type: string
+            description:
+              type: [string, 'null']
+            jobLevel:
+              type: [string, 'null']
+            employmentType:
+              $ref: '#/components/schemas/EmploymentType'
+            headcount:
+              type: integer
+              minimum: 0
+            filledCount:
+              type: integer
+              minimum: 0
+            minSalary:
+              type: [string, 'null']
+            maxSalary:
+              type: [string, 'null']
+            currencyCode:
+              type: string
+              minLength: 3
+              maxLength: 3
+            isActive:
+              type: boolean
+            metadata:
+              type: object
+              additionalProperties: true
+
+    PositionCreate:
+      type: object
+      required: [departmentId, code, title]
+      properties:
+        departmentId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        jobLevel:
+          type: string
+        employmentType:
+          $ref: '#/components/schemas/EmploymentType'
+        headcount:
+          type: integer
+          minimum: 0
+          default: 1
+        minSalary:
+          type: string
+        maxSalary:
+          type: string
+        currencyCode:
+          type: string
+          default: USD
+        isActive:
+          type: boolean
+          default: true
+        metadata:
+          type: object
+          additionalProperties: true
+
+    PositionUpdate:
+      allOf:
+        - $ref: '#/components/schemas/PositionCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+
+    PositionCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Position'
+
+    TimeOffRequestStatus:
+      type: string
+      enum: [pending, approved, rejected, cancelled]
+
+    TimeOffRequest:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, employeeId, policyId, requestNumber, status, startDate, endDate, totalDays, halfDayStart, halfDayEnd]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            employeeId:
+              type: string
+              format: uuid
+            policyId:
+              type: string
+              format: uuid
+            requestNumber:
+              type: string
+            status:
+              $ref: '#/components/schemas/TimeOffRequestStatus'
+            startDate:
+              type: string
+              format: date
+            endDate:
+              type: string
+              format: date
+            totalDays:
+              type: string
+            halfDayStart:
+              type: boolean
+            halfDayEnd:
+              type: boolean
+            reason:
+              type: [string, 'null']
+            approverId:
+              type: [string, 'null']
+              format: uuid
+            approvedAt:
+              type: [string, 'null']
+              format: date-time
+            rejectionReason:
+              type: [string, 'null']
+            metadata:
+              type: object
+              additionalProperties: true
+
+    TimeOffRequestCreate:
+      type: object
+      required: [employeeId, policyId, startDate, endDate, totalDays]
+      properties:
+        employeeId:
+          type: string
+          format: uuid
+        policyId:
+          type: string
+          format: uuid
+        requestNumber:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        totalDays:
+          type: string
+        halfDayStart:
+          type: boolean
+          default: false
+        halfDayEnd:
+          type: boolean
+          default: false
+        reason:
+          type: string
+        approverId:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+
+    TimeOffRequestUpdate:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        totalDays:
+          type: string
+        halfDayStart:
+          type: boolean
+        halfDayEnd:
+          type: boolean
+        reason:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    TimeOffRequestCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/TimeOffRequest'
+
+    ApproveTimeOffRequest:
+      type: object
+      properties:
+        version:
+          type: integer
+        notes:
+          type: string
+
+    DenyTimeOffRequest:
+      type: object
+      required: [rejectionReason, version]
+      properties:
+        version:
+          type: integer
+        rejectionReason:
+          type: string
+
+    OrgChartNode:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [id, organizationId, employeeId, nodeLevel, sortOrder, isActive, effectiveFrom]
+          properties:
+            id:
+              type: string
+              format: uuid
+            organizationId:
+              type: string
+              format: uuid
+            employeeId:
+              type: string
+              format: uuid
+            managerId:
+              type: [string, 'null']
+              format: uuid
+            departmentId:
+              type: [string, 'null']
+              format: uuid
+            positionId:
+              type: [string, 'null']
+              format: uuid
+            nodeLevel:
+              type: integer
+              minimum: 0
+            sortOrder:
+              type: integer
+            isActive:
+              type: boolean
+            effectiveFrom:
+              type: string
+              format: date
+            effectiveTo:
+              type: [string, 'null']
+              format: date
+            metadata:
+              type: object
+              additionalProperties: true
+
+    OrgChartNodeCreate:
+      type: object
+      required: [employeeId]
+      properties:
+        employeeId:
+          type: string
+          format: uuid
+        managerId:
+          type: string
+          format: uuid
+        departmentId:
+          type: string
+          format: uuid
+        positionId:
+          type: string
+          format: uuid
+        nodeLevel:
+          type: integer
+          minimum: 0
+          default: 0
+        sortOrder:
+          type: integer
+          default: 0
+        isActive:
+          type: boolean
+          default: true
+        effectiveFrom:
+          type: string
+          format: date
+        effectiveTo:
+          type: string
+          format: date
+        metadata:
+          type: object
+          additionalProperties: true
+
+    OrgChartNodeUpdate:
+      allOf:
+        - $ref: '#/components/schemas/OrgChartNodeCreate'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+
+    OrgChartNodeCursorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/OrgChartNode'
+
+    OrgChartNodeSummary:
+      type: object
+      required: [node, children]
+      properties:
+        node:
+          $ref: '#/components/schemas/OrgChartNode'
+        employee:
+          $ref: '#/components/schemas/Employee'
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrgChartNodeSummary'
+
+    OrgChart:
+      type: object
+      required: [organizationId, roots, totalNodes]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        totalNodes:
+          type: integer
+        roots:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrgChartNodeSummary'

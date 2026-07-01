@@ -1,0 +1,865 @@
+openapi: 3.1.0
+info:
+  title: Atlas BOS Knowledge Base API
+  version: 1.0.0
+  description: |
+    REST API for the Knowledge Base bounded context (schema: `knowledge_base`).
+    Resources: KbSpaces, Articles, Categories.
+servers:
+  - url: https://api.atlas.example.com
+security:
+  - bearerAuth: []
+tags:
+  - name: KbSpaces
+  - name: Categories
+  - name: Articles
+paths:
+  /v1/organizations/{organizationId}/kb-spaces:
+    get:
+      operationId: listKbSpaces
+      tags: [KbSpaces]
+      summary: List knowledge base spaces
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: spaceType
+          in: query
+          schema:
+            $ref: '#/components/schemas/KbSpaceType'
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated KB space list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbSpaceListResponse'
+    post:
+      operationId: createKbSpace
+      tags: [KbSpaces]
+      summary: Create a knowledge base space
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KbSpaceCreate'
+      responses:
+        '201':
+          description: KB space created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbSpace'
+  /v1/organizations/{organizationId}/kb-spaces/{kbSpaceId}:
+    get:
+      operationId: getKbSpace
+      tags: [KbSpaces]
+      summary: Get KB space by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/kbSpaceId'
+      responses:
+        '200':
+          description: KB space details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbSpace'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateKbSpace
+      tags: [KbSpaces]
+      summary: Update a KB space
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/kbSpaceId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KbSpaceUpdate'
+      responses:
+        '200':
+          description: KB space updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbSpace'
+  /v1/organizations/{organizationId}/kb-spaces/{kbSpaceId}/categories:
+    get:
+      operationId: listKbCategories
+      tags: [Categories]
+      summary: List categories in a KB space
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/kbSpaceId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: parentCategoryId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated category list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbCategoryListResponse'
+    post:
+      operationId: createKbCategory
+      tags: [Categories]
+      summary: Create a category
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/kbSpaceId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KbCategoryCreate'
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbCategory'
+  /v1/organizations/{organizationId}/kb-spaces/{kbSpaceId}/categories/{categoryId}:
+    get:
+      operationId: getKbCategory
+      tags: [Categories]
+      summary: Get category by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/kbSpaceId'
+        - $ref: '#/components/parameters/categoryId'
+      responses:
+        '200':
+          description: Category details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbCategory'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateKbCategory
+      tags: [Categories]
+      summary: Update a category
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/kbSpaceId'
+        - $ref: '#/components/parameters/categoryId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KbCategoryUpdate'
+      responses:
+        '200':
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbCategory'
+  /v1/organizations/{organizationId}/kb-spaces/{kbSpaceId}/articles:
+    get:
+      operationId: listKbArticles
+      tags: [Articles]
+      summary: List articles in a KB space
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/kbSpaceId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/KbArticleStatus'
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: locale
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated article list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbArticleListResponse'
+    post:
+      operationId: createKbArticle
+      tags: [Articles]
+      summary: Create an article
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/kbSpaceId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KbArticleCreate'
+      responses:
+        '201':
+          description: Article created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbArticle'
+  /v1/organizations/{organizationId}/kb-spaces/{kbSpaceId}/articles/{articleId}:
+    get:
+      operationId: getKbArticle
+      tags: [Articles]
+      summary: Get article by ID
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/kbSpaceId'
+        - $ref: '#/components/parameters/articleId'
+        - name: includeContent
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Article details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbArticleDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateKbArticle
+      tags: [Articles]
+      summary: Update an article
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/kbSpaceId'
+        - $ref: '#/components/parameters/articleId'
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KbArticleUpdate'
+      responses:
+        '200':
+          description: Article updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbArticle'
+  /v1/organizations/{organizationId}/kb-spaces/{kbSpaceId}/articles/{articleId}/publish:
+    post:
+      operationId: publishKbArticle
+      tags: [Articles]
+      summary: Publish an article
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/kbSpaceId'
+        - $ref: '#/components/parameters/articleId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                changeSummary:
+                  type: string
+      responses:
+        '200':
+          description: Article published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbArticle'
+  /v1/organizations/{organizationId}/kb-spaces/{kbSpaceId}/articles/{articleId}/versions:
+    get:
+      operationId: listKbArticleVersions
+      tags: [Articles]
+      summary: List article version history
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/kbSpaceId'
+        - $ref: '#/components/parameters/articleId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Paginated version list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbArticleVersionListResponse'
+  /v1/organizations/{organizationId}/kb-spaces/{kbSpaceId}/search:
+    post:
+      operationId: searchKbArticles
+      tags: [Articles]
+      summary: Search articles in a KB space
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/kbSpaceId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KbSearchRequest'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbSearchResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    organizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    kbSpaceId:
+      name: kbSpaceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    categoryId:
+      name: categoryId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    articleId:
+      name: articleId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ifMatch:
+      name: If-Match
+      in: header
+      schema:
+        type: integer
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+    Pagination:
+      type: object
+      required: [has_more, limit]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+    KbSpaceType:
+      type: string
+      enum: [internal, help_center, partner, api_docs]
+    KbVisibility:
+      type: string
+      enum: [private, organization, public]
+    KbArticleStatus:
+      type: string
+      enum: [draft, in_review, published, archived, deprecated]
+    KbSpace:
+      type: object
+      required: [id, organizationId, name, slug, spaceType, visibility]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        spaceType:
+          $ref: '#/components/schemas/KbSpaceType'
+        visibility:
+          $ref: '#/components/schemas/KbVisibility'
+        defaultLocale:
+          type: string
+        supportedLocales:
+          type: array
+          items:
+            type: string
+        branding:
+          type: object
+          additionalProperties: true
+        settings:
+          type: object
+          additionalProperties: true
+        isActive:
+          type: boolean
+        articleCount:
+          type: integer
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    KbSpaceCreate:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        spaceType:
+          $ref: '#/components/schemas/KbSpaceType'
+        visibility:
+          $ref: '#/components/schemas/KbVisibility'
+        defaultLocale:
+          type: string
+        supportedLocales:
+          type: array
+          items:
+            type: string
+        branding:
+          type: object
+          additionalProperties: true
+        settings:
+          type: object
+          additionalProperties: true
+    KbSpaceUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        visibility:
+          $ref: '#/components/schemas/KbVisibility'
+        branding:
+          type: object
+          additionalProperties: true
+        settings:
+          type: object
+          additionalProperties: true
+        isActive:
+          type: boolean
+    KbSpaceListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/KbSpace'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    KbCategory:
+      type: object
+      required: [id, organizationId, spaceId, name, slug]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        spaceId:
+          type: string
+          format: uuid
+        parentCategoryId:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        depth:
+          type: integer
+        sortOrder:
+          type: integer
+        icon:
+          type: string
+          nullable: true
+        isVisible:
+          type: boolean
+        articleCount:
+          type: integer
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    KbCategoryCreate:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        parentCategoryId:
+          type: string
+          format: uuid
+        description:
+          type: string
+        sortOrder:
+          type: integer
+        icon:
+          type: string
+        isVisible:
+          type: boolean
+    KbCategoryUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        sortOrder:
+          type: integer
+        icon:
+          type: string
+        isVisible:
+          type: boolean
+        parentCategoryId:
+          type: string
+          format: uuid
+    KbCategoryListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/KbCategory'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    KbArticle:
+      type: object
+      required: [id, organizationId, spaceId, slug, title, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        spaceId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+          nullable: true
+        slug:
+          type: string
+        title:
+          type: string
+        summary:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/KbArticleStatus'
+        currentVersionNumber:
+          type: integer
+        authorId:
+          type: string
+          format: uuid
+          nullable: true
+        reviewerId:
+          type: string
+          format: uuid
+          nullable: true
+        locale:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        viewCount:
+          type: string
+        helpfulCount:
+          type: integer
+        notHelpfulCount:
+          type: integer
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        sortOrder:
+          type: integer
+        accessPolicy:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    KbArticleVersion:
+      type: object
+      required: [id, articleId, versionNumber, title, contentMarkdown]
+      properties:
+        id:
+          type: string
+          format: uuid
+        articleId:
+          type: string
+          format: uuid
+        versionNumber:
+          type: integer
+        title:
+          type: string
+        summary:
+          type: string
+          nullable: true
+        contentMarkdown:
+          type: string
+        contentHtml:
+          type: string
+          nullable: true
+        changeSummary:
+          type: string
+          nullable: true
+        authorId:
+          type: string
+          format: uuid
+          nullable: true
+        wordCount:
+          type: integer
+          nullable: true
+        isPublished:
+          type: boolean
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    KbArticleDetail:
+      allOf:
+        - $ref: '#/components/schemas/KbArticle'
+        - type: object
+          properties:
+            contentMarkdown:
+              type: string
+            contentHtml:
+              type: string
+              nullable: true
+            currentVersion:
+              $ref: '#/components/schemas/KbArticleVersion'
+    KbArticleCreate:
+      type: object
+      required: [slug, title, contentMarkdown]
+      properties:
+        slug:
+          type: string
+        title:
+          type: string
+        summary:
+          type: string
+        contentMarkdown:
+          type: string
+        categoryId:
+          type: string
+          format: uuid
+        locale:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        accessPolicy:
+          type: object
+          additionalProperties: true
+    KbArticleUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        summary:
+          type: string
+        contentMarkdown:
+          type: string
+        categoryId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/KbArticleStatus'
+        tags:
+          type: array
+          items:
+            type: string
+        sortOrder:
+          type: integer
+        accessPolicy:
+          type: object
+          additionalProperties: true
+    KbArticleListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/KbArticle'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    KbArticleVersionListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/KbArticleVersion'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    KbSearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+        locale:
+          type: string
+        categoryId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/KbArticleStatus'
+        limit:
+          type: integer
+          default: 20
+    KbSearchResult:
+      type: object
+      required: [article, score, highlight]
+      properties:
+        article:
+          $ref: '#/components/schemas/KbArticle'
+        score:
+          type: number
+        highlight:
+          type: string
+    KbSearchResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/KbSearchResult'
+        totalCount:
+          type: integer
