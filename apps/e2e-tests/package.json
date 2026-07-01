@@ -1,0 +1,19 @@
+{
+  "name": "@atlas/e2e-tests",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Atlas BOS — Playwright end-to-end browser tests",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rimraf test-results playwright-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.2"
+  }
+}

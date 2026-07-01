@@ -1,0 +1,38 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+**/.next
+**/.turbo
+**/dist
+**/coverage
+.turbo
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Logs & local storage
+**/*.log
+validate-last.log
+.atlas-storage
+
+# OS
+**/.DS_Store
+Thumbs.db
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Test artifacts
+playwright-report
+test-results
+blob-report
+
+# Prisma generated (regenerated via db:generate)
+packages/database/node_modules/.prisma

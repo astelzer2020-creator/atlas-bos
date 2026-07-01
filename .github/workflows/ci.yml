@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas_dev_password
+          POSTGRES_DB: atlas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://atlas:atlas_dev_password@localhost:5432/atlas
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-secret-minimum-32-characters-long
+      NODE_ENV: test
+      KAFKA_MOCK: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Apply SQL migrations
+        run: pnpm db:migrate
+
+      - name: Lint (platform, queue, event-bus, ui)
+        run: |
+          pnpm --filter @atlas/platform lint
+          pnpm --filter @atlas/queue lint
+          pnpm --filter @atlas/event-bus lint
+          pnpm --filter @atlas/ui lint
+          pnpm --filter @atlas/web lint
+
+      - name: Typecheck core packages
+        run: |
+          pnpm --filter @atlas/shared-kernel typecheck
+          pnpm --filter @atlas/platform typecheck
+          pnpm --filter @atlas/database typecheck
+          pnpm --filter @atlas/event-bus typecheck
+          pnpm --filter @atlas/queue typecheck
+          pnpm --filter @atlas/api typecheck
+          pnpm --filter @atlas/worker typecheck
+
+      - name: Build applications
+        run: |
+          pnpm --filter @atlas/api build
+          pnpm --filter @atlas/worker build
+          pnpm --filter @atlas/web build
+
+      - name: Unit and integration tests
+        run: |
+          pnpm --filter @atlas/platform test
+          pnpm --filter @atlas/event-bus test
+          pnpm --filter @atlas/queue test
+          pnpm --filter @atlas/module-automation test
+          pnpm --filter @atlas/module-ai-memory test
+          pnpm --filter @atlas/api test
+          pnpm --filter @atlas/worker test
+          pnpm --filter @atlas/integration-tests test
+          pnpm --filter @atlas/performance-tests test
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @atlas/e2e-tests exec playwright install chromium
+
+      - name: E2E smoke tests
+        run: pnpm test:e2e

@@ -1,0 +1,43 @@
+{
+  "name": "@atlas/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Atlas BOS — Production Fastify API server",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch --env-file=../../.env src/main.ts",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@atlas/database": "workspace:*",
+    "@atlas/module-audit": "workspace:*",
+    "@atlas/module-notifications": "workspace:*",
+    "@atlas/module-storage": "workspace:*",
+    "@atlas/module-tenant-identity": "workspace:*",
+    "@atlas/module-workflow": "workspace:*",
+    "@atlas/module-automation": "workspace:*",
+    "@atlas/module-crm": "workspace:*",
+    "@atlas/module-projects": "workspace:*",
+    "@atlas/module-ai": "workspace:*",
+    "@atlas/module-ai-memory": "workspace:*",
+    "@atlas/module-finance": "workspace:*",
+    "@atlas/platform": "workspace:*",
+    "@atlas/shared-kernel": "workspace:*",
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^10.0.2",
+    "@fastify/helmet": "^13.0.1",
+    "@fastify/rate-limit": "^10.2.2",
+    "fastify": "^5.2.1"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

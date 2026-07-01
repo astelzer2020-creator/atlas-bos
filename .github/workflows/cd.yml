@@ -1,0 +1,85 @@
+name: CD
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas_dev_password
+          POSTGRES_DB: atlas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://atlas:atlas_dev_password@localhost:5432/atlas
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: cd-release-secret-minimum-32-characters
+      NODE_ENV: test
+      KAFKA_MOCK: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Apply SQL migrations
+        run: pnpm db:migrate
+
+      - name: Validate release
+        run: node scripts/validate.mjs
+
+      - name: Build production images
+        run: |
+          docker compose -f docker-compose.prod.yml build
+
+      - name: Upload release artifacts metadata
+        run: |
+          echo "Release tag: ${{ github.ref_name }}" >> release-summary.txt
+          echo "Validated at: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> release-summary.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-summary
+          path: release-summary.txt
