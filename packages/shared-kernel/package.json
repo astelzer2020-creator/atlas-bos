@@ -1,0 +1,64 @@
+{
+  "name": "@atlas/shared-kernel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal cross-cutting domain primitives for Atlas BOS",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./ids": {
+      "types": "./dist/ids/branded-ids.d.ts",
+      "import": "./dist/ids/branded-ids.js"
+    },
+    "./result": {
+      "types": "./dist/result/result.d.ts",
+      "import": "./dist/result/result.js"
+    },
+    "./errors": {
+      "types": "./dist/errors/domain-errors.d.ts",
+      "import": "./dist/errors/domain-errors.js"
+    },
+    "./value-objects/email": {
+      "types": "./dist/value-objects/email.d.ts",
+      "import": "./dist/value-objects/email.js"
+    },
+    "./value-objects/money": {
+      "types": "./dist/value-objects/money.d.ts",
+      "import": "./dist/value-objects/money.js"
+    },
+    "./value-objects/slug": {
+      "types": "./dist/value-objects/slug.d.ts",
+      "import": "./dist/value-objects/slug.js"
+    },
+    "./events": {
+      "types": "./dist/events/domain-event.d.ts",
+      "import": "./dist/events/domain-event.js"
+    },
+    "./time": {
+      "types": "./dist/time/clock.d.ts",
+      "import": "./dist/time/clock.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
