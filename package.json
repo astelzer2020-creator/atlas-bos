@@ -1,0 +1,46 @@
+{
+  "name": "atlas-bos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Atlas — Business Operating System",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "node scripts/dev-all.mjs",
+    "dev:all": "node scripts/dev-all.mjs",
+    "dev:web": "corepack pnpm --filter @atlas/web dev",
+    "dev:api": "corepack pnpm --filter @atlas/api dev",
+    "dev:worker": "pnpm --filter @atlas/worker dev",
+    "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "test:integration": "pnpm --filter @atlas/integration-tests test",
+    "test:e2e": "pnpm --filter @atlas/web build && pnpm --filter @atlas/e2e-tests test",
+    "test:performance": "pnpm --filter @atlas/performance-tests test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
+    "db:generate": "pnpm --filter @atlas/database generate",
+    "db:migrate": "pnpm --filter @atlas/database migrate",
+    "db:push": "pnpm --filter @atlas/database push",
+    "clean": "turbo run clean && rimraf node_modules",
+    "validate": "node scripts/validate.mjs",
+    "validate:quick": "node scripts/validate-quick.mjs",
+    "env:validate": "node scripts/env-validate.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@types/node": "^22.10.5",
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2",
+    "rimraf": "^6.0.1",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.19.1",
+    "vitest": "^2.1.8"
+  }
+}
