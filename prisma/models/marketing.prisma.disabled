@@ -1,0 +1,389 @@
+// Marketing bounded context — schema: marketing
+
+enum CampaignStatus {
+  draft
+  scheduled
+  active
+  paused
+  completed
+  cancelled
+
+  @@schema("marketing")
+}
+
+enum CampaignChannel {
+  email
+  sms
+  multi_channel
+  social
+  webinar
+
+  @@schema("marketing")
+}
+
+enum CampaignType {
+  one_time
+  drip
+  triggered
+  ab_test
+
+  @@schema("marketing")
+}
+
+enum CampaignGoal {
+  awareness
+  engagement
+  lead_gen
+  conversion
+  retention
+  reactivation
+
+  @@schema("marketing")
+}
+
+enum CampaignStepType {
+  email
+  sms
+  wait
+  condition
+  webhook
+  tag_contact
+  create_task
+  landing_page
+
+  @@schema("marketing")
+}
+
+enum CampaignStepStatus {
+  pending
+  active
+  completed
+  skipped
+  failed
+
+  @@schema("marketing")
+}
+
+enum SegmentType {
+  static
+  dynamic
+
+  @@schema("marketing")
+}
+
+enum SegmentRuleOperator {
+  eq
+  neq
+  gt
+  gte
+  lt
+  lte
+  contains
+  not_contains
+  in
+  not_in
+  is_null
+  is_not_null
+  between
+
+  @@schema("marketing")
+}
+
+enum LogicalConnector {
+  and
+  or
+
+  @@schema("marketing")
+}
+
+enum LandingPageStatus {
+  draft
+  published
+  archived
+
+  @@schema("marketing")
+}
+
+enum AttributionEventType {
+  impression
+  click
+  open
+  conversion
+  unsubscribe
+  bounce
+  form_submit
+  page_view
+
+  @@schema("marketing")
+}
+
+enum SubscriberListType {
+  email
+  sms
+  push
+
+  @@schema("marketing")
+}
+
+enum SubscriberListStatus {
+  active
+  archived
+
+  @@schema("marketing")
+}
+
+model Campaign {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String         @map("organization_id") @db.Uuid
+  name             String
+  description      String?
+  status           CampaignStatus @default(draft)
+  channel          CampaignChannel @default(email)
+  campaignType     CampaignType   @default(one_time) @map("campaign_type")
+  goal             CampaignGoal?
+  segmentId        String?        @map("segment_id") @db.Uuid
+  subscriberListId String?        @map("subscriber_list_id") @db.Uuid
+  budgetAmount     Decimal?       @map("budget_amount") @db.Decimal(18, 4)
+  budgetCurrency   String?        @default("USD") @map("budget_currency") @db.Char(3)
+  scheduledAt      DateTime?      @map("scheduled_at") @db.Timestamptz(6)
+  startedAt        DateTime?      @map("started_at") @db.Timestamptz(6)
+  endedAt          DateTime?      @map("ended_at") @db.Timestamptz(6)
+  utmSource        String?        @map("utm_source")
+  utmMedium        String?        @map("utm_medium")
+  utmCampaign      String?        @map("utm_campaign")
+  settings         Json           @default("{}")
+  metricsSnapshot  Json           @default("{}") @map("metrics_snapshot")
+  metadata         Json           @default("{}")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy        String?        @map("created_by") @db.Uuid
+  updatedBy        String?        @map("updated_by") @db.Uuid
+  deletedAt        DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  version          Int            @default(1)
+
+  segment         Segment?         @relation(fields: [segmentId], references: [id])
+  subscriberList  SubscriberList?  @relation(fields: [subscriberListId], references: [id])
+  steps           CampaignStep[]
+  attributionEvents AttributionEvent[]
+
+  @@index([organizationId], map: "idx_campaigns_organization_id")
+  @@index([organizationId, status], map: "idx_campaigns_org_status_active")
+  @@index([organizationId, scheduledAt], map: "idx_campaigns_scheduled_at")
+  @@map("campaigns")
+  @@schema("marketing")
+}
+
+model CampaignStep {
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String             @map("organization_id") @db.Uuid
+  campaignId          String             @map("campaign_id") @db.Uuid
+  stepOrder           Int                @map("step_order")
+  name                String
+  stepType            CampaignStepType   @map("step_type")
+  status              CampaignStepStatus @default(pending)
+  emailTemplateId     String?            @map("email_template_id") @db.Uuid
+  landingPageId       String?            @map("landing_page_id") @db.Uuid
+  delayHours          Int?               @default(0) @map("delay_hours")
+  delayDays           Int?               @default(0) @map("delay_days")
+  conditionExpression String?            @map("condition_expression")
+  contentOverrides    Json               @default("{}") @map("content_overrides")
+  sendWindowStart     DateTime?          @map("send_window_start") @db.Time(6)
+  sendWindowEnd       DateTime?          @map("send_window_end") @db.Time(6)
+  timezone            String?            @default("UTC")
+  abVariant           String?            @map("ab_variant")
+  abWeightPercent     Decimal?           @default(100) @map("ab_weight_percent") @db.Decimal(5, 2)
+  metadata            Json               @default("{}")
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy           String?            @map("created_by") @db.Uuid
+  updatedBy           String?            @map("updated_by") @db.Uuid
+  deletedAt           DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  version             Int                @default(1)
+
+  campaign      Campaign       @relation(fields: [campaignId], references: [id])
+  emailTemplate EmailTemplate? @relation(fields: [emailTemplateId], references: [id])
+  landingPage   LandingPage?   @relation(fields: [landingPageId], references: [id])
+  attributionEvents AttributionEvent[]
+
+  @@unique([organizationId, campaignId, stepOrder], map: "uq_campaign_steps_order_active")
+  @@index([campaignId], map: "idx_campaign_steps_campaign_id")
+  @@map("campaign_steps")
+  @@schema("marketing")
+}
+
+model Segment {
+  id                   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String      @map("organization_id") @db.Uuid
+  name                 String
+  description          String?
+  segmentType          SegmentType @default(dynamic) @map("segment_type")
+  isActive             Boolean     @default(true) @map("is_active")
+  memberCount          Int         @default(0) @map("member_count")
+  lastComputedAt       DateTime?   @map("last_computed_at") @db.Timestamptz(6)
+  refreshIntervalHours Int?        @default(24) @map("refresh_interval_hours")
+  settings             Json        @default("{}")
+  metadata             Json        @default("{}")
+  createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy            String?     @map("created_by") @db.Uuid
+  updatedBy            String?     @map("updated_by") @db.Uuid
+  deletedAt            DateTime?   @map("deleted_at") @db.Timestamptz(6)
+  version              Int         @default(1)
+
+  rules     SegmentRule[]
+  campaigns Campaign[]
+
+  @@unique([organizationId, name], map: "uq_segments_org_name_active")
+  @@index([organizationId], map: "idx_segments_org_active")
+  @@map("segments")
+  @@schema("marketing")
+}
+
+model SegmentRule {
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String              @map("organization_id") @db.Uuid
+  segmentId        String              @map("segment_id") @db.Uuid
+  ruleGroup        Int                 @default(0) @map("rule_group")
+  ruleOrder        Int                 @default(0) @map("rule_order")
+  field            String
+  operator         SegmentRuleOperator
+  value            Json?
+  logicalConnector LogicalConnector    @default(and) @map("logical_connector")
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy        String?             @map("created_by") @db.Uuid
+  updatedBy        String?             @map("updated_by") @db.Uuid
+  deletedAt        DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  version          Int                 @default(1)
+
+  segment Segment @relation(fields: [segmentId], references: [id])
+
+  @@index([segmentId, ruleGroup, ruleOrder], map: "idx_segment_rules_segment_id")
+  @@map("segment_rules")
+  @@schema("marketing")
+}
+
+model EmailTemplate {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  name            String
+  description     String?
+  subject         String
+  preheader       String?
+  htmlBody        String   @map("html_body")
+  textBody        String?  @map("text_body")
+  templateVersion Int      @default(1) @map("template_version")
+  category        String   @default("general")
+  isActive        Boolean  @default(true) @map("is_active")
+  variables       Json     @default("[]")
+  designJson      Json     @default("{}") @map("design_json")
+  metadata        Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy       String?  @map("created_by") @db.Uuid
+  updatedBy       String?  @map("updated_by") @db.Uuid
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version         Int      @default(1)
+
+  campaignSteps CampaignStep[]
+
+  @@unique([organizationId, name, templateVersion], map: "uq_email_templates_org_name_version_active")
+  @@index([organizationId, category], map: "idx_email_templates_category")
+  @@map("email_templates")
+  @@schema("marketing")
+}
+
+model LandingPage {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String            @map("organization_id") @db.Uuid
+  name            String
+  slug            String
+  title           String
+  description     String?
+  status          LandingPageStatus @default(draft)
+  htmlContent     String?           @map("html_content")
+  cssContent      String?           @map("css_content")
+  designJson      Json              @default("{}") @map("design_json")
+  formConfig      Json              @default("{}") @map("form_config")
+  seoMeta         Json              @default("{}") @map("seo_meta")
+  publishedAt     DateTime?         @map("published_at") @db.Timestamptz(6)
+  publishedUrl    String?           @map("published_url")
+  viewCount       BigInt            @default(0) @map("view_count")
+  conversionCount BigInt            @default(0) @map("conversion_count")
+  metadata        Json              @default("{}")
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy       String?           @map("created_by") @db.Uuid
+  updatedBy       String?           @map("updated_by") @db.Uuid
+  deletedAt       DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  version         Int               @default(1)
+
+  campaignSteps CampaignStep[]
+
+  @@unique([organizationId, slug], map: "uq_landing_pages_org_slug_active")
+  @@index([organizationId, status], map: "idx_landing_pages_status")
+  @@map("landing_pages")
+  @@schema("marketing")
+}
+
+model AttributionEvent {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  campaignId     String?              @map("campaign_id") @db.Uuid
+  campaignStepId String?              @map("campaign_step_id") @db.Uuid
+  contactId      String?              @map("contact_id") @db.Uuid
+  sessionId      String?              @map("session_id")
+  eventType      AttributionEventType @map("event_type")
+  channel        String
+  source         String?
+  medium         String?
+  content        String?
+  term           String?
+  revenueAmount  Decimal?             @map("revenue_amount") @db.Decimal(18, 4)
+  revenueCurrency String?             @default("USD") @map("revenue_currency") @db.Char(3)
+  occurredAt     DateTime             @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  properties     Json                 @default("{}")
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  campaign     Campaign?     @relation(fields: [campaignId], references: [id])
+  campaignStep CampaignStep? @relation(fields: [campaignStepId], references: [id])
+
+  @@index([organizationId, campaignId, occurredAt(sort: Desc)], map: "idx_attribution_events_campaign")
+  @@index([organizationId, contactId, occurredAt(sort: Desc)], map: "idx_attribution_events_contact")
+  @@index([organizationId, eventType, occurredAt(sort: Desc)], map: "idx_attribution_events_type")
+  @@map("attribution_events")
+  @@schema("marketing")
+}
+
+model SubscriberList {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String               @map("organization_id") @db.Uuid
+  name               String
+  description        String?
+  listType           SubscriberListType   @default(email) @map("list_type")
+  status             SubscriberListStatus @default(active)
+  requireConfirmation Boolean             @default(true) @map("require_confirmation")
+  doubleOptIn        Boolean              @default(true) @map("double_opt_in")
+  subscriberCount    Int                  @default(0) @map("subscriber_count")
+  confirmedCount     Int                  @default(0) @map("confirmed_count")
+  unsubscribeCount   Int                  @default(0) @map("unsubscribe_count")
+  defaultFromName    String?              @map("default_from_name")
+  defaultFromEmail   String?              @map("default_from_email")
+  defaultReplyTo     String?              @map("default_reply_to")
+  consentText        String?              @map("consent_text")
+  settings           Json                 @default("{}")
+  metadata           Json                 @default("{}")
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy          String?              @map("created_by") @db.Uuid
+  updatedBy          String?              @map("updated_by") @db.Uuid
+  deletedAt          DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  version            Int                  @default(1)
+
+  campaigns Campaign[]
+
+  @@unique([organizationId, name], map: "uq_subscriber_lists_org_name_active")
+  @@index([organizationId, status], map: "idx_subscriber_lists_org_status")
+  @@map("subscriber_lists")
+  @@schema("marketing")
+}

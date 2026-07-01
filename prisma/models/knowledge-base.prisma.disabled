@@ -1,0 +1,240 @@
+// Knowledge Base bounded context — schema: knowledge_base
+
+enum KbSpaceType {
+  internal
+  help_center
+  partner
+  api_docs
+
+  @@schema("knowledge_base")
+}
+
+enum KbVisibility {
+  private
+  organization
+  public
+
+  @@schema("knowledge_base")
+}
+
+enum KbArticleStatus {
+  draft
+  in_review
+  published
+  archived
+  deprecated
+
+  @@schema("knowledge_base")
+}
+
+enum KbFeedbackType {
+  helpful
+  not_helpful
+  suggestion
+  correction
+  outdated
+
+  @@schema("knowledge_base")
+}
+
+enum KbSearchSource {
+  search_bar
+  ai_assistant
+  api
+  embed
+
+  @@schema("knowledge_base")
+}
+
+model KbSpace {
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String      @map("organization_id") @db.Uuid
+  name             String
+  slug             String
+  description      String?
+  spaceType        KbSpaceType @default(internal) @map("space_type")
+  visibility       KbVisibility @default(organization)
+  defaultLocale    String      @default("en") @map("default_locale")
+  supportedLocales String[]    @default(["en"]) @map("supported_locales")
+  branding         Json        @default("{}")
+  settings         Json        @default("{}")
+  isActive         Boolean     @default(true) @map("is_active")
+  articleCount     Int         @default(0) @map("article_count")
+  metadata         Json        @default("{}")
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy        String?     @map("created_by") @db.Uuid
+  updatedBy        String?     @map("updated_by") @db.Uuid
+  deletedAt        DateTime?   @map("deleted_at") @db.Timestamptz(6)
+  version          Int         @default(1)
+
+  categories      KbCategory[]
+  articles        KbArticle[]
+  searchAnalytics KbSearchAnalytics[]
+
+  @@unique([organizationId, slug], map: "uq_kb_spaces_org_slug_active")
+  @@index([organizationId, spaceType], map: "idx_kb_spaces_org_type")
+  @@map("kb_spaces")
+  @@schema("knowledge_base")
+}
+
+model KbCategory {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  spaceId          String   @map("space_id") @db.Uuid
+  parentCategoryId String?  @map("parent_category_id") @db.Uuid
+  name             String
+  slug             String
+  description      String?
+  depth            Int      @default(0)
+  sortOrder        Int      @default(0) @map("sort_order")
+  icon             String?
+  isVisible        Boolean  @default(true) @map("is_visible")
+  articleCount     Int      @default(0) @map("article_count")
+  metadata         Json     @default("{}")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy        String?  @map("created_by") @db.Uuid
+  updatedBy        String?  @map("updated_by") @db.Uuid
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version          Int      @default(1)
+
+  space          KbSpace      @relation(fields: [spaceId], references: [id])
+  parentCategory KbCategory?  @relation("CategoryHierarchy", fields: [parentCategoryId], references: [id])
+  childCategories KbCategory[] @relation("CategoryHierarchy")
+  articles       KbArticle[]
+
+  @@unique([organizationId, spaceId, slug], map: "uq_kb_categories_space_slug_active")
+  @@index([spaceId, parentCategoryId, sortOrder], map: "idx_kb_categories_parent")
+  @@map("kb_categories")
+  @@schema("knowledge_base")
+}
+
+model KbArticle {
+  id                    String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId        String          @map("organization_id") @db.Uuid
+  spaceId               String          @map("space_id") @db.Uuid
+  categoryId            String?         @map("category_id") @db.Uuid
+  slug                  String
+  title                 String
+  summary               String?
+  status                KbArticleStatus @default(draft)
+  currentVersionId      String?         @map("current_version_id") @db.Uuid
+  currentVersionNumber  Int             @default(0) @map("current_version_number")
+  authorId              String?         @map("author_id") @db.Uuid
+  reviewerId            String?         @map("reviewer_id") @db.Uuid
+  locale                String          @default("en")
+  tags                  String[]        @default([])
+  viewCount             BigInt          @default(0) @map("view_count")
+  helpfulCount          Int             @default(0) @map("helpful_count")
+  notHelpfulCount       Int             @default(0) @map("not_helpful_count")
+  publishedAt           DateTime?       @map("published_at") @db.Timestamptz(6)
+  archivedAt            DateTime?       @map("archived_at") @db.Timestamptz(6)
+  sortOrder             Int             @default(0) @map("sort_order")
+  accessPolicy          Json            @default("{}") @map("access_policy")
+  metadata              Json            @default("{}")
+  createdAt             DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy             String?         @map("created_by") @db.Uuid
+  updatedBy             String?         @map("updated_by") @db.Uuid
+  deletedAt             DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  version               Int             @default(1)
+
+  space           KbSpace            @relation(fields: [spaceId], references: [id])
+  category        KbCategory?        @relation(fields: [categoryId], references: [id])
+  articleVersions KbArticleVersion[]
+  feedback        KbFeedback[]
+  searchClicks    KbSearchAnalytics[]
+
+  @@unique([organizationId, spaceId, slug], map: "uq_kb_articles_space_slug_active")
+  @@index([spaceId, status], map: "idx_kb_articles_space_status")
+  @@index([categoryId], map: "idx_kb_articles_category")
+  @@index([organizationId, publishedAt(sort: Desc)], map: "idx_kb_articles_published")
+  @@map("kb_articles")
+  @@schema("knowledge_base")
+}
+
+model KbArticleVersion {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  articleId       String   @map("article_id") @db.Uuid
+  versionNumber   Int      @map("version_number")
+  title           String
+  summary         String?
+  contentMarkdown String   @map("content_markdown")
+  contentHtml     String?  @map("content_html")
+  changeSummary   String?  @map("change_summary")
+  authorId        String?  @map("author_id") @db.Uuid
+  wordCount       Int?     @map("word_count")
+  isPublished     Boolean  @default(false) @map("is_published")
+  publishedAt     DateTime? @map("published_at") @db.Timestamptz(6)
+  metadata        Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy       String?  @map("created_by") @db.Uuid
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version         Int      @default(1)
+
+  article  KbArticle    @relation(fields: [articleId], references: [id])
+  feedback KbFeedback[]
+
+  @@unique([articleId, versionNumber], map: "uq_kb_article_versions_number")
+  @@index([articleId, versionNumber(sort: Desc)], map: "idx_kb_article_versions_article")
+  @@index([organizationId, publishedAt(sort: Desc)], map: "idx_kb_article_versions_published")
+  @@map("kb_article_versions")
+  @@schema("knowledge_base")
+}
+
+model KbFeedback {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String         @map("organization_id") @db.Uuid
+  articleId        String         @map("article_id") @db.Uuid
+  articleVersionId String?        @map("article_version_id") @db.Uuid
+  userId           String?        @map("user_id") @db.Uuid
+  feedbackType     KbFeedbackType @map("feedback_type")
+  rating           Int?
+  comment          String?
+  isResolved       Boolean        @default(false) @map("is_resolved")
+  resolvedBy       String?        @map("resolved_by") @db.Uuid
+  resolvedAt       DateTime?      @map("resolved_at") @db.Timestamptz(6)
+  metadata         Json           @default("{}")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy        String?        @map("created_by") @db.Uuid
+  updatedBy        String?        @map("updated_by") @db.Uuid
+  deletedAt        DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  version          Int            @default(1)
+
+  article        KbArticle         @relation(fields: [articleId], references: [id])
+  articleVersion KbArticleVersion? @relation(fields: [articleVersionId], references: [id])
+
+  @@index([articleId, createdAt(sort: Desc)], map: "idx_kb_feedback_article")
+  @@index([organizationId, isResolved], map: "idx_kb_feedback_unresolved")
+  @@map("kb_feedback")
+  @@schema("knowledge_base")
+}
+
+model KbSearchAnalytics {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String         @map("organization_id") @db.Uuid
+  spaceId          String         @map("space_id") @db.Uuid
+  userId           String?        @map("user_id") @db.Uuid
+  sessionId        String?        @map("session_id")
+  queryText        String         @map("query_text")
+  queryNormalized  String         @map("query_normalized")
+  resultCount      Int            @default(0) @map("result_count")
+  clickedArticleId String?        @map("clicked_article_id") @db.Uuid
+  clickPosition    Int?           @map("click_position")
+  searchDurationMs Int?           @map("search_duration_ms")
+  source           KbSearchSource @default(search_bar)
+  occurredAt       DateTime       @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  properties       Json           @default("{}")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  space          KbSpace    @relation(fields: [spaceId], references: [id])
+  clickedArticle KbArticle? @relation(fields: [clickedArticleId], references: [id])
+
+  @@index([organizationId, spaceId, occurredAt(sort: Desc)], map: "idx_kb_search_analytics_space")
+  @@index([organizationId, queryNormalized, occurredAt(sort: Desc)], map: "idx_kb_search_analytics_query")
+  @@map("kb_search_analytics")
+  @@schema("knowledge_base")
+}

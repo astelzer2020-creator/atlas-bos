@@ -1,0 +1,253 @@
+// Notifications bounded context — multi-channel delivery, templates, preferences, digests
+// Schema: notifications
+// See: docs/database/17-notifications.md
+
+enum NotificationChannelType {
+  email
+  push
+  sms
+  in_app
+  slack
+  teams
+  webhook
+
+  @@schema("notifications")
+}
+
+enum NotificationTemplateStatus {
+  draft
+  active
+  deprecated
+
+  @@schema("notifications")
+}
+
+enum DigestMode {
+  instant
+  hourly
+  daily
+  weekly
+
+  @@schema("notifications")
+}
+
+enum NotificationCategory {
+  transactional
+  operational
+  digest
+  alert
+  marketing
+
+  @@schema("notifications")
+}
+
+enum NotificationStatus {
+  pending
+  processing
+  delivered
+  partial
+  failed
+  suppressed
+  expired
+
+  @@schema("notifications")
+}
+
+enum NotificationActorType {
+  user
+  system
+  api_key
+  agent
+  workflow
+
+  @@schema("notifications")
+}
+
+enum NotificationDeliveryStatus {
+  pending
+  queued
+  sent
+  delivered
+  failed
+  suppressed
+  bounced
+
+  @@schema("notifications")
+}
+
+enum DigestFrequency {
+  hourly
+  daily
+  weekly
+
+  @@schema("notifications")
+}
+
+model NotificationChannel {
+  id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                String                  @unique @db.Citext
+  name                String
+  description         String?
+  channelType         NotificationChannelType @map("channel_type")
+  provider            String
+  defaultPriority     Int                     @default(3) @map("default_priority") @db.SmallInt
+  maxRetries          Int                     @default(5) @map("max_retries") @db.SmallInt
+  retryBackoffSeconds Int                     @default(60) @map("retry_backoff_seconds")
+  rateLimitPerMinute  Int?                    @map("rate_limit_per_minute")
+  configSchema        Json                    @default("{}") @map("config_schema")
+  isActive            Boolean                 @default(true) @map("is_active")
+  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  templates    NotificationTemplate[]
+  preferences  NotificationPreference[]
+  deliveries   NotificationDelivery[]
+
+  @@index([channelType], map: "idx_notification_channels_type")
+  @@map("notification_channels")
+  @@schema("notifications")
+}
+
+model NotificationTemplate {
+  id                    String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  definitionId          String                     @map("definition_id")
+  notificationChannelId String                     @map("notification_channel_id") @db.Uuid
+  locale                String                     @default("en-US")
+  version               Int
+  subjectTemplate       String?                    @map("subject_template")
+  bodyTemplate          String                     @map("body_template")
+  mjmlSource            String?                    @map("mjml_source")
+  plainTextTemplate     String?                    @map("plain_text_template")
+  variablesSchema       Json                       @default("{}") @map("variables_schema")
+  status                NotificationTemplateStatus @default(draft)
+  activatedAt           DateTime?                  @map("activated_at") @db.Timestamptz(6)
+  deprecatedAt          DateTime?                  @map("deprecated_at") @db.Timestamptz(6)
+  createdAt             DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy             String?                    @map("created_by") @db.Uuid
+  updatedBy             String?                    @map("updated_by") @db.Uuid
+
+  notificationChannel NotificationChannel  @relation(fields: [notificationChannelId], references: [id])
+  deliveries          NotificationDelivery[]
+
+  @@unique([definitionId, notificationChannelId, locale, version], map: "uq_notification_templates_def_channel_locale_version")
+  @@index([definitionId, status], map: "idx_notification_templates_definition")
+  @@map("notification_templates")
+  @@schema("notifications")
+}
+
+model NotificationPreference {
+  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String              @map("tenant_id") @db.Uuid
+  userId                String              @map("user_id") @db.Uuid
+  definitionId          String              @map("definition_id")
+  notificationChannelId String              @map("notification_channel_id") @db.Uuid
+  enabled               Boolean             @default(true)
+  digestMode            DigestMode?         @map("digest_mode")
+  quietHoursOverride    Json?               @map("quiet_hours_override")
+  metadata              Json                @default("{}")
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version               Int                 @default(1)
+
+  notificationChannel NotificationChannel @relation(fields: [notificationChannelId], references: [id])
+
+  @@unique([tenantId, userId, definitionId, notificationChannelId], map: "uq_notification_preferences_user_def_channel")
+  @@index([tenantId, userId], map: "idx_notification_preferences_user")
+  @@index([tenantId, definitionId], map: "idx_notification_preferences_definition")
+  @@map("notification_preferences")
+  @@schema("notifications")
+}
+
+model Notification {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String                @map("tenant_id") @db.Uuid
+  definitionId    String                @map("definition_id")
+  category        NotificationCategory
+  priority        Int                   @default(3) @db.SmallInt
+  recipientUserId String                @map("recipient_user_id") @db.Uuid
+  actorUserId     String?               @map("actor_user_id") @db.Uuid
+  actorType       NotificationActorType @default(user) @map("actor_type")
+  title           String
+  body            String?
+  actionUrl       String?               @map("action_url")
+  entityType      String?               @map("entity_type")
+  entityId        String?               @map("entity_id") @db.Uuid
+  payload         Json                  @default("{}")
+  locale          String                @default("en-US")
+  status          NotificationStatus    @default(pending)
+  idempotencyKey  String                @map("idempotency_key")
+  scheduledFor    DateTime?             @map("scheduled_for") @db.Timestamptz(6)
+  expiresAt       DateTime?             @map("expires_at") @db.Timestamptz(6)
+  readAt          DateTime?             @map("read_at") @db.Timestamptz(6)
+  dismissedAt     DateTime?             @map("dismissed_at") @db.Timestamptz(6)
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  deliveries NotificationDelivery[]
+
+  @@unique([tenantId, idempotencyKey], map: "uq_notifications_idempotency")
+  @@index([tenantId, recipientUserId, createdAt(sort: Desc)], map: "idx_notifications_recipient_inbox")
+  @@index([tenantId, entityType, entityId], map: "idx_notifications_entity")
+  @@index([scheduledFor], map: "idx_notifications_scheduled")
+  @@map("notifications")
+  @@schema("notifications")
+}
+
+model NotificationDelivery {
+  id                     String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String                     @map("tenant_id") @db.Uuid
+  notificationId         String                     @map("notification_id") @db.Uuid
+  notificationChannelId  String                     @map("notification_channel_id") @db.Uuid
+  notificationTemplateId String?                    @map("notification_template_id") @db.Uuid
+  idempotencyKey         String                     @unique @map("idempotency_key")
+  status                 NotificationDeliveryStatus @default(pending)
+  attemptCount           Int                        @default(0) @map("attempt_count") @db.SmallInt
+  providerMessageId      String?                    @map("provider_message_id")
+  providerResponse       Json?                      @map("provider_response")
+  renderedSnapshot       Json?                      @map("rendered_snapshot")
+  errorCode              String?                    @map("error_code")
+  errorMessage           String?                    @map("error_message")
+  sentAt                 DateTime?                  @map("sent_at") @db.Timestamptz(6)
+  deliveredAt            DateTime?                  @map("delivered_at") @db.Timestamptz(6)
+  openedAt               DateTime?                  @map("opened_at") @db.Timestamptz(6)
+  clickedAt              DateTime?                  @map("clicked_at") @db.Timestamptz(6)
+  failedAt               DateTime?                  @map("failed_at") @db.Timestamptz(6)
+  nextRetryAt            DateTime?                  @map("next_retry_at") @db.Timestamptz(6)
+  createdAt              DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  notification         Notification          @relation(fields: [notificationId], references: [id])
+  notificationChannel  NotificationChannel   @relation(fields: [notificationChannelId], references: [id])
+  notificationTemplate NotificationTemplate? @relation(fields: [notificationTemplateId], references: [id])
+
+  @@index([notificationId], map: "idx_notification_deliveries_notification")
+  @@index([tenantId, status, createdAt(sort: Desc)], map: "idx_notification_deliveries_tenant_status")
+  @@index([nextRetryAt], map: "idx_notification_deliveries_retry")
+  @@map("notification_deliveries")
+  @@schema("notifications")
+}
+
+model DigestSubscription {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String          @map("tenant_id") @db.Uuid
+  userId            String          @map("user_id") @db.Uuid
+  definitionId      String          @map("definition_id")
+  digestFrequency   DigestFrequency @map("digest_frequency")
+  timezone          String          @default("UTC")
+  deliveryHour      Int             @default(8) @map("delivery_hour") @db.SmallInt
+  deliveryDayOfWeek Int?            @map("delivery_day_of_week") @db.SmallInt
+  lastSentAt        DateTime?       @map("last_sent_at") @db.Timestamptz(6)
+  nextScheduledAt   DateTime        @map("next_scheduled_at") @db.Timestamptz(6)
+  pendingCount      Int             @default(0) @map("pending_count")
+  isActive          Boolean         @default(true) @map("is_active")
+  metadata          Json            @default("{}")
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, userId, definitionId], map: "uq_digest_subscriptions_user_def")
+  @@index([nextScheduledAt], map: "idx_digest_subscriptions_next_scheduled")
+  @@index([tenantId, userId], map: "idx_digest_subscriptions_user")
+  @@map("digest_subscriptions")
+  @@schema("notifications")
+}

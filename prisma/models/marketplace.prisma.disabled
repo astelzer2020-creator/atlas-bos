@@ -1,0 +1,310 @@
+// Marketplace bounded context — Atlas App Store catalog, installs, permissions, webhooks
+// Schema: marketplace
+// See: docs/database/15-marketplace.md
+
+enum DeveloperVerificationStatus {
+  pending
+  verified
+  suspended
+  rejected
+
+  @@schema("marketplace")
+}
+
+enum MarketplaceAppStatus {
+  draft
+  in_review
+  published
+  deprecated
+  suspended
+
+  @@schema("marketplace")
+}
+
+enum MarketplacePricingModel {
+  free
+  freemium
+  paid
+  usage_based
+  included
+
+  @@schema("marketplace")
+}
+
+enum AppVersionStatus {
+  draft
+  submitted
+  in_review
+  approved
+  rejected
+  deprecated
+
+  @@schema("marketplace")
+}
+
+enum AppPermissionRiskLevel {
+  low
+  medium
+  high
+  critical
+
+  @@schema("marketplace")
+}
+
+enum AppInstallationStatus {
+  pending
+  active
+  paused
+  error
+  uninstalled
+
+  @@schema("marketplace")
+}
+
+enum AppHealthStatus {
+  healthy
+  degraded
+  unhealthy
+  unknown
+
+  @@schema("marketplace")
+}
+
+enum AppReviewStatus {
+  published
+  hidden
+  flagged
+  removed
+
+  @@schema("marketplace")
+}
+
+model DeveloperAccount {
+  id                     String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String?                     @map("tenant_id") @db.Uuid
+  userId                 String                      @map("user_id") @db.Uuid
+  displayName            String                      @map("display_name")
+  companyName            String?                     @map("company_name")
+  websiteUrl             String?                     @map("website_url")
+  supportEmail           String                      @map("support_email") @db.Citext
+  stripeConnectAccountId String?                     @map("stripe_connect_account_id")
+  verificationStatus     DeveloperVerificationStatus @default(pending) @map("verification_status")
+  verifiedAt             DateTime?                   @map("verified_at") @db.Timestamptz(6)
+  metadata               Json                        @default("{}")
+  createdAt              DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt              DateTime?                   @map("deleted_at") @db.Timestamptz(6)
+  createdBy              String?                     @map("created_by") @db.Uuid
+  updatedBy              String?                     @map("updated_by") @db.Uuid
+  version                Int                         @default(1)
+
+  apps MarketplaceApp[]
+
+  @@index([userId], map: "idx_developer_accounts_user_id")
+  @@index([verificationStatus], map: "idx_developer_accounts_verification_status")
+  @@map("developer_accounts")
+  @@schema("marketplace")
+}
+
+model MarketplaceApp {
+  id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  developerAccountId  String                  @map("developer_account_id") @db.Uuid
+  slug                String                  @unique @db.Citext
+  name                String
+  tagline             String?
+  description         String?
+  longDescription     String?                 @map("long_description")
+  logoUrl             String?                 @map("logo_url")
+  bannerUrl           String?                 @map("banner_url")
+  documentationUrl    String?                 @map("documentation_url")
+  privacyPolicyUrl    String?                 @map("privacy_policy_url")
+  termsUrl            String?                 @map("terms_url")
+  categories          String[]                @default([])
+  tags                String[]                @default([])
+  pricingModel        MarketplacePricingModel @default(free) @map("pricing_model")
+  basePriceCents      BigInt?                 @map("base_price_cents")
+  currency            String?                 @default("USD") @db.Char(3)
+  installCount        BigInt                  @default(0) @map("install_count")
+  averageRating       Decimal?                @map("average_rating") @db.Decimal(3, 2)
+  reviewCount         Int                     @default(0) @map("review_count")
+  isFirstParty        Boolean                 @default(false) @map("is_first_party")
+  isFeatured          Boolean                 @default(false) @map("is_featured")
+  status              MarketplaceAppStatus    @default(draft)
+  publishedAt         DateTime?               @map("published_at") @db.Timestamptz(6)
+  deprecatedAt        DateTime?               @map("deprecated_at") @db.Timestamptz(6)
+  metadata            Json                    @default("{}")
+  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt           DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  createdBy           String?                 @map("created_by") @db.Uuid
+  updatedBy           String?                 @map("updated_by") @db.Uuid
+  version             Int                     @default(1)
+
+  developerAccount DeveloperAccount   @relation(fields: [developerAccountId], references: [id])
+  versions         AppVersion[]
+  permissions      AppPermission[]
+  installations    AppInstallation[]
+  reviews          AppReview[]
+
+  @@index([developerAccountId], map: "idx_marketplace_apps_developer_account_id")
+  @@index([status, publishedAt(sort: Desc)], map: "idx_marketplace_apps_status_published")
+  @@map("marketplace_apps")
+  @@schema("marketplace")
+}
+
+model AppVersion {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  marketplaceAppId  String           @map("marketplace_app_id") @db.Uuid
+  version           String
+  versionMajor      Int              @map("version_major")
+  versionMinor      Int              @map("version_minor")
+  versionPatch      Int              @map("version_patch")
+  prerelease        String?
+  changelog         String?
+  manifest          Json
+  minAtlasVersion   String?          @map("min_atlas_version")
+  maxAtlasVersion   String?          @map("max_atlas_version")
+  oauthRedirectUris String[]         @default([]) @map("oauth_redirect_uris")
+  webhookEventTypes String[]         @default([]) @map("webhook_event_types")
+  status            AppVersionStatus @default(draft)
+  submittedAt       DateTime?        @map("submitted_at") @db.Timestamptz(6)
+  approvedAt        DateTime?        @map("approved_at") @db.Timestamptz(6)
+  approvedBy        String?          @map("approved_by") @db.Uuid
+  rejectionReason   String?          @map("rejection_reason")
+  packageUrl        String?          @map("package_url")
+  packageChecksum   Bytes?           @map("package_checksum")
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdBy         String?          @map("created_by") @db.Uuid
+  updatedBy         String?          @map("updated_by") @db.Uuid
+  versionLock       Int              @default(1) @map("version_lock")
+
+  marketplaceApp MarketplaceApp    @relation(fields: [marketplaceAppId], references: [id])
+  permissions    AppPermission[]
+  installations  AppInstallation[]
+
+  @@unique([marketplaceAppId, version], map: "uq_app_versions_app_version")
+  @@index([marketplaceAppId, versionMajor(sort: Desc), versionMinor(sort: Desc), versionPatch(sort: Desc)], map: "idx_app_versions_marketplace_app_id")
+  @@index([status], map: "idx_app_versions_status")
+  @@map("app_versions")
+  @@schema("marketplace")
+}
+
+model AppPermission {
+  id               String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  marketplaceAppId String                 @map("marketplace_app_id") @db.Uuid
+  appVersionId     String                 @map("app_version_id") @db.Uuid
+  permissionKey    String                 @map("permission_key")
+  scope            String
+  resource         String
+  action           String
+  description      String
+  isRequired       Boolean                @default(true) @map("is_required")
+  isSensitive      Boolean                @default(false) @map("is_sensitive")
+  riskLevel        AppPermissionRiskLevel @default(low) @map("risk_level")
+  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  marketplaceApp MarketplaceApp @relation(fields: [marketplaceAppId], references: [id])
+  appVersion     AppVersion     @relation(fields: [appVersionId], references: [id])
+
+  @@unique([appVersionId, permissionKey], map: "uq_app_permissions_version_key")
+  @@index([marketplaceAppId], map: "idx_app_permissions_marketplace_app_id")
+  @@index([scope], map: "idx_app_permissions_scope")
+  @@map("app_permissions")
+  @@schema("marketplace")
+}
+
+model AppInstallation {
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                @map("tenant_id") @db.Uuid
+  marketplaceAppId  String                @map("marketplace_app_id") @db.Uuid
+  appVersionId      String                @map("app_version_id") @db.Uuid
+  status            AppInstallationStatus @default(pending)
+  config            Json                  @default("{}")
+  grantedScopes     String[]              @default([]) @map("granted_scopes")
+  oauthClientId     String?               @map("oauth_client_id") @db.Uuid
+  installedBy       String                @map("installed_by") @db.Uuid
+  installedAt       DateTime              @default(now()) @map("installed_at") @db.Timestamptz(6)
+  uninstalledAt     DateTime?             @map("uninstalled_at") @db.Timestamptz(6)
+  uninstalledBy     String?               @map("uninstalled_by") @db.Uuid
+  lastHealthCheckAt DateTime?             @map("last_health_check_at") @db.Timestamptz(6)
+  healthStatus      AppHealthStatus       @default(unknown) @map("health_status")
+  errorMessage      String?               @map("error_message")
+  metadata          Json                  @default("{}")
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?             @map("deleted_at") @db.Timestamptz(6)
+  createdBy         String?               @map("created_by") @db.Uuid
+  updatedBy         String?               @map("updated_by") @db.Uuid
+  version           Int                   @default(1)
+
+  marketplaceApp MarketplaceApp @relation(fields: [marketplaceAppId], references: [id])
+  appVersion     AppVersion     @relation(fields: [appVersionId], references: [id])
+  webhooks       AppWebhook[]
+  reviews        AppReview[]
+
+  @@index([tenantId], map: "idx_app_installations_tenant_id")
+  @@index([marketplaceAppId], map: "idx_app_installations_marketplace_app_id")
+  @@index([tenantId, status], map: "idx_app_installations_status")
+  @@map("app_installations")
+  @@schema("marketplace")
+}
+
+model AppWebhook {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  appInstallationId String    @map("app_installation_id") @db.Uuid
+  url               String
+  secretHash        Bytes     @map("secret_hash")
+  secretPrefix      String    @map("secret_prefix") @db.Char(8)
+  eventTypes        String[]  @map("event_types")
+  isActive          Boolean   @default(true) @map("is_active")
+  failureCount      Int       @default(0) @map("failure_count")
+  lastDeliveredAt   DateTime? @map("last_delivered_at") @db.Timestamptz(6)
+  lastFailureAt     DateTime? @map("last_failure_at") @db.Timestamptz(6)
+  disabledAt        DateTime? @map("disabled_at") @db.Timestamptz(6)
+  metadata          Json      @default("{}")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy         String?   @map("created_by") @db.Uuid
+  updatedBy         String?   @map("updated_by") @db.Uuid
+  version           Int       @default(1)
+
+  appInstallation AppInstallation @relation(fields: [appInstallationId], references: [id])
+
+  @@index([tenantId, appInstallationId], map: "idx_app_webhooks_tenant_installation")
+  @@index([appInstallationId], map: "idx_app_webhooks_active")
+  @@map("app_webhooks")
+  @@schema("marketplace")
+}
+
+model AppReview {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String          @map("tenant_id") @db.Uuid
+  marketplaceAppId  String          @map("marketplace_app_id") @db.Uuid
+  appInstallationId String?         @map("app_installation_id") @db.Uuid
+  userId            String          @map("user_id") @db.Uuid
+  rating            Int             @db.SmallInt
+  title             String?
+  body              String?
+  isVerifiedInstall Boolean         @default(false) @map("is_verified_install")
+  status            AppReviewStatus @default(published)
+  moderatedBy       String?         @map("moderated_by") @db.Uuid
+  moderatedAt       DateTime?       @map("moderated_at") @db.Timestamptz(6)
+  helpfulCount      Int             @default(0) @map("helpful_count")
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  createdBy         String?         @map("created_by") @db.Uuid
+  updatedBy         String?         @map("updated_by") @db.Uuid
+  version           Int             @default(1)
+
+  marketplaceApp  MarketplaceApp   @relation(fields: [marketplaceAppId], references: [id])
+  appInstallation AppInstallation? @relation(fields: [appInstallationId], references: [id])
+
+  @@index([marketplaceAppId, createdAt(sort: Desc)], map: "idx_app_reviews_marketplace_app_id")
+  @@map("app_reviews")
+  @@schema("marketplace")
+}
