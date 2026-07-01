@@ -4,6 +4,7 @@ import {
   AtlasKafkaConsumer,
   createKafkaClient,
   createKafkaProducer,
+  InMemoryPubSub,
   RedisPubSub,
 } from '@atlas/event-bus';
 import { createAuditModule, type AuditModule } from '@atlas/module-audit';
@@ -23,7 +24,11 @@ import {
   type TenantIdentityModule,
 } from '@atlas/module-tenant-identity';
 import { createWorkflowModule, type WorkflowModule } from '@atlas/module-workflow';
-import { AtlasQueueManager, createRedisConnection } from '@atlas/queue';
+import {
+  createQueueManager,
+  createRedisConnection,
+  type AtlasQueueManagerLike,
+} from '@atlas/queue';
 import {
   createJwtService,
   createLogger,
@@ -35,7 +40,7 @@ import {
   type PasswordHasher,
 } from '@atlas/platform';
 import type { PrismaClient } from '@atlas/database';
-import { Redis } from 'ioredis';
+
 
 import { loadWorkerConfig, type WorkerConfig } from '../config.js';
 
@@ -46,7 +51,7 @@ export interface WorkerContainer {
   readonly jwtService: JwtService;
   readonly passwordHasher: PasswordHasher;
   readonly metrics: MetricsCollector;
-  readonly queueManager: AtlasQueueManager;
+  readonly queueManager: AtlasQueueManagerLike;
   readonly eventBus: AtlasEventBus;
   readonly kafkaConsumer: AtlasKafkaConsumer | null;
   readonly tenantIdentity: TenantIdentityModule;
@@ -95,9 +100,8 @@ export async function createContainer(
 
   const queueManager =
     overrides?.queueManager ??
-    new AtlasQueueManager({
+    createQueueManager({
       redisUrl: config.redisUrl,
-      connection: createRedisConnection(config.redisUrl),
       workerId: 'atlas-worker',
     });
 
@@ -114,8 +118,10 @@ export async function createContainer(
           });
 
     const producer = createKafkaProducer(kafka, { mock: config.kafkaMock });
-    const redisPublisher = new Redis(config.redisUrl);
-    const pubsub = new RedisPubSub(redisPublisher);
+    const redisMock = process.env.REDIS_MOCK === 'true' || process.env.REDIS_MOCK === '1';
+    const pubsub = redisMock
+      ? (new InMemoryPubSub() as unknown as RedisPubSub)
+      : new RedisPubSub(createRedisConnection(config.redisUrl));
     eventBus = new AtlasEventBus(producer, pubsub);
 
     kafkaConsumer =
